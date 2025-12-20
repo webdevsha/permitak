@@ -12,24 +12,11 @@ const _playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-serif
 
 export const metadata: Metadata = {
   title: "Permit Akaun - Sistem Pengurusan Pasar Malam",
-  description: "Created with v0",
-  generator: "v0.app",
+  description: "Sistem pengurusan permit, sewa, dan akaun bersepadu untuk peniaga pasar malam dan Uptown.",
   icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
+    icon: "https://ik.imagekit.io/cbctech/977ab6e6-c7d7-44cf-961d-b926ace8d43e.png",
+    shortcut: "https://ik.imagekit.io/cbctech/977ab6e6-c7d7-44cf-961d-b926ace8d43e.png",
+    apple: "https://ik.imagekit.io/cbctech/977ab6e6-c7d7-44cf-961d-b926ace8d43e.png",
   },
 }
 
