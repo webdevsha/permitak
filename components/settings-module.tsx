@@ -21,20 +21,20 @@ export function SettingsModule() {
       <div className="grid gap-6 max-w-2xl">
         <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-olive-900 font-serif">Profil Pengguna</CardTitle>
+            <CardTitle className="text-primary font-serif">Profil Pengguna</CardTitle>
             <CardDescription>Maklumat peribadi anda di dalam sistem</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
               <Label>Nama Penuh</Label>
-              <Input placeholder="Nama anda" className="border-olive-200" />
+              <Input placeholder="Nama anda" className="border-border" />
             </div>
             <div className="grid gap-2">
               <Label>Alamat Emel</Label>
-              <Input type="email" placeholder="emel@contoh.com" className="border-olive-200" />
+              <Input type="email" placeholder="emel@contoh.com" className="border-border" />
             </div>
             <div className="pt-2">
-              <Button onClick={handleSave} className="bg-olive-600 hover:bg-olive-700 text-white">
+              <Button onClick={handleSave} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20">
                 Simpan Profil
               </Button>
             </div>
@@ -43,20 +43,20 @@ export function SettingsModule() {
 
         <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-olive-900 font-serif">Keselamatan</CardTitle>
+            <CardTitle className="text-primary font-serif">Keselamatan</CardTitle>
             <CardDescription>Tukar kata laluan anda</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
               <Label>Kata Laluan Semasa</Label>
-              <Input type="password" underline="false" className="border-olive-200" />
+              <Input type="password" className="border-border" />
             </div>
             <div className="grid gap-2">
               <Label>Kata Laluan Baru</Label>
-              <Input type="password" underline="false" className="border-olive-200" />
+              <Input type="password" className="border-border" />
             </div>
             <div className="pt-2">
-              <Button onClick={handleSave} variant="outline" className="border-olive-200 text-olive-700 bg-transparent">
+              <Button onClick={handleSave} variant="outline" className="border-primary/20 text-primary bg-transparent hover:bg-primary/5">
                 Tukar Kata Laluan
               </Button>
             </div>
