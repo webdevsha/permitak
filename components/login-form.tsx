@@ -44,17 +44,14 @@ export function LoginForm() {
   }
 
   const handleSignUp = async () => {
-     // Optional: For testing, you might want a quick signup, 
-     // but usually you'd want a separate page or admin-only invite.
-     // For now, let's keep it simple.
      toast.info("Sila hubungi admin untuk pendaftaran akaun.")
   }
 
   return (
-    <Card className="w-full max-w-md bg-cream-50 border-olive-200 shadow-xl">
+    <Card className="w-full max-w-md bg-white/90 backdrop-blur-sm border-primary/20 shadow-xl">
       <CardHeader className="text-center space-y-1">
-        <CardTitle className="text-3xl font-serif font-bold text-olive-900">Permit Akaun</CardTitle>
-        <CardDescription className="text-olive-700/70">Selamat datang kembali. Sila log masuk.</CardDescription>
+        <CardTitle className="text-3xl font-serif font-bold text-primary">Permit Akaun</CardTitle>
+        <CardDescription className="text-muted-foreground">Selamat datang kembali. Sila log masuk.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
@@ -64,7 +61,7 @@ export function LoginForm() {
               id="email"
               type="email"
               placeholder="nama@contoh.com"
-              className="border-olive-200 focus:ring-olive-500 bg-white/50"
+              className="border-primary/20 focus:ring-primary/50 bg-white/50"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -75,7 +72,7 @@ export function LoginForm() {
               id="password"
               type="password"
               placeholder="••••••••"
-              className="border-olive-200 focus:ring-olive-500 bg-white/50"
+              className="border-primary/20 focus:ring-primary/50 bg-white/50"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -84,13 +81,13 @@ export function LoginForm() {
         <Button 
           onClick={handleLogin} 
           disabled={loading}
-          className="w-full bg-olive-600 hover:bg-olive-700 text-white font-medium h-12 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm transition-all"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-12 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm transition-all shadow-lg shadow-primary/20"
         >
           {loading ? "Sedang Memproses..." : "Log Masuk"}
         </Button>
         <div className="text-center space-y-2">
-          <button className="text-sm text-olive-600 hover:underline block w-full">Lupa kata laluan?</button>
-          <button onClick={handleSignUp} className="text-xs text-muted-foreground hover:text-olive-600">Belum ada akaun?</button>
+          <button className="text-sm text-primary hover:underline block w-full">Lupa kata laluan?</button>
+          <button onClick={handleSignUp} className="text-xs text-muted-foreground hover:text-primary">Belum ada akaun?</button>
         </div>
       </CardContent>
     </Card>
