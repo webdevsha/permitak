@@ -14,6 +14,8 @@ export type Location = {
   rate_cbs: number
   rate_monthly: number
   image_url: string | null
+  operating_days: string | null
+  total_lots: number
   created_at: string
 }
 
