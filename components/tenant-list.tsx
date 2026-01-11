@@ -128,7 +128,7 @@ export function TenantList() {
   const getStatusBadge = (tenant: any) => {
     switch (tenant.computedStatus) {
       case "paid":
-        return <Badge className="bg-green-100 text-green-800 border-none hover:bg-green-200">Berbayar</Badge>
+        return <Badge className="bg-brand-green/10 text-brand-green border-none hover:bg-brand-green/20">Berbayar</Badge>
       case "overdue":
         return (
           <Badge className="bg-red-100 text-red-800 border-none hover:bg-red-200 animate-pulse">
@@ -136,7 +136,7 @@ export function TenantList() {
           </Badge>
         )
       case "new":
-        return <Badge className="bg-blue-100 text-blue-800 border-none hover:bg-blue-200">Baru</Badge>
+        return <Badge className="bg-brand-blue/10 text-brand-blue border-none hover:bg-brand-blue/20">Baru</Badge>
       default:
         return <Badge variant="secondary">Tiada Rekod</Badge>
     }
@@ -267,11 +267,11 @@ export function TenantList() {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="bg-green-50 border border-green-100 p-3 rounded-lg flex gap-3 items-center">
-                                  <Calendar className="text-green-600 h-5 w-5" />
+                                <div className="bg-brand-green/10 border border-brand-green/20 p-3 rounded-lg flex gap-3 items-center">
+                                  <Calendar className="text-brand-green h-5 w-5" />
                                   <div>
-                                    <p className="text-green-900 font-bold text-sm">Akaun Berbayar</p>
-                                    <p className="text-green-700 text-xs">
+                                    <p className="text-brand-green font-bold text-sm">Akaun Berbayar</p>
+                                    <p className="text-brand-green/80 text-xs">
                                       Tiada tunggakan. Bayaran terakhir diterima pada {selectedTenant.lastPaymentDate}.
                                     </p>
                                   </div>
@@ -301,11 +301,11 @@ export function TenantList() {
                                           <TableRow key={tx.id} className="h-10 text-xs">
                                             <TableCell className="font-mono">{tx.date}</TableCell>
                                             <TableCell className="capitalize">{tx.description || tx.category}</TableCell>
-                                            <TableCell className={`text-right font-bold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            <TableCell className={`text-right font-bold ${tx.type === 'income' ? 'text-brand-green' : 'text-red-600'}`}>
                                               {tx.type === 'income' ? '+' : '-'} {tx.amount}
                                             </TableCell>
                                             <TableCell className="text-center">
-                                              <Badge variant="outline" className={`text-[10px] px-1 py-0 h-5 ${tx.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                                              <Badge variant="outline" className={`text-[10px] px-1 py-0 h-5 ${tx.status === 'approved' ? 'bg-brand-green/10 text-brand-green border-brand-green/20' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
                                                 {tx.status}
                                               </Badge>
                                             </TableCell>
@@ -324,7 +324,7 @@ export function TenantList() {
                               {/* Actions */}
                               <div className="flex gap-3 pt-2">
                                 <Button
-                                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold"
+                                  className="flex-1 bg-brand-green hover:bg-brand-green/90 text-white font-bold"
                                   onClick={() => openWhatsApp(selectedTenant.phone_number)}
                                   disabled={!selectedTenant.phone_number}
                                 >
