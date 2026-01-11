@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
-import { MessageSquare, Eye, Phone, Loader2, AlertCircle, Calendar } from "lucide-react"
+import { MessageSquare, Eye, Phone, Loader2, AlertCircle, Calendar, FileText, Download, Building, MapPin } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import useSWR from "swr"
 import { createClient } from "@/utils/supabase/client"
+import Image from "next/image"
 
 // Fetcher to get tenants with their locations and latest payment
 const fetchTenants = async () => {
@@ -104,7 +105,7 @@ const fetchTenants = async () => {
 }
 
 export function TenantList() {
-  const { data: tenants, isLoading } = useSWR('enriched_tenants_v6', fetchTenants)
+  const { data: tenants, isLoading } = useSWR('enriched_tenants_v7', fetchTenants)
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
   const [tenantTransactions, setTenantTransactions] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -180,9 +181,22 @@ export function TenantList() {
               {tenants?.map((tenant) => (
                 <TableRow key={tenant.id} className="border-border/30 hover:bg-secondary/10 transition-colors">
                   <TableCell>
-                    <div className="font-medium text-foreground">{tenant.full_name}</div>
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {tenant.business_name || "Tiada Nama Bisnes"}
+                    <div className="flex items-center gap-3">
+                       {tenant.profile_image_url ? (
+                         <div className="relative w-8 h-8 rounded-full overflow-hidden border border-border">
+                           <Image src={tenant.profile_image_url} alt="Profile" fill className="object-cover" />
+                         </div>
+                       ) : (
+                         <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold text-muted-foreground">
+                           {tenant.full_name?.charAt(0)}
+                         </div>
+                       )}
+                       <div>
+                        <div className="font-medium text-foreground">{tenant.full_name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">
+                          {tenant.business_name || "Tiada Nama Bisnes"}
+                        </div>
+                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -217,41 +231,69 @@ export function TenantList() {
                             <Eye size={16} />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-white border-border sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                        <DialogContent className="bg-white border-border sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle className="text-2xl font-serif text-foreground">Maklumat Peniaga</DialogTitle>
                             <DialogDescription className="text-muted-foreground">
-                              Profil dan rekod transaksi kewangan
+                              Profil lengkap dan rekod perniagaan
                             </DialogDescription>
                           </DialogHeader>
                           {selectedTenant && (
                             <div className="space-y-6 py-4">
                               
-                              {/* Profile Section */}
-                              <div className="grid grid-cols-2 gap-4 bg-secondary/10 p-4 rounded-xl">
-                                <div>
-                                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                    Nama Penuh
+                              {/* Profile Header */}
+                              <div className="flex items-start gap-4">
+                                 <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-border bg-secondary/30 shrink-0">
+                                   {selectedTenant.profile_image_url ? (
+                                      <Image src={selectedTenant.profile_image_url} alt="Profile" fill className="object-cover" />
+                                   ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-primary text-2xl font-bold">
+                                         {selectedTenant.full_name?.charAt(0)}
+                                      </div>
+                                   )}
+                                 </div>
+                                 <div className="flex-1">
+                                    <h3 className="text-xl font-bold text-foreground">{selectedTenant.full_name}</h3>
+                                    <p className="text-muted-foreground flex items-center gap-1.5 text-sm mt-1">
+                                       <Building size={14} /> {selectedTenant.business_name || "Tiada Nama Perniagaan"}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                       {selectedTenant.ssm_number && (
+                                          <Badge variant="outline" className="text-[10px] font-mono">SSM: {selectedTenant.ssm_number}</Badge>
+                                       )}
+                                       {selectedTenant.ic_number && (
+                                          <Badge variant="outline" className="text-[10px] font-mono">IC: {selectedTenant.ic_number}</Badge>
+                                       )}
+                                    </div>
+                                 </div>
+                              </div>
+
+                              {/* Detailed Info Grid */}
+                              <div className="grid grid-cols-2 gap-4 bg-secondary/10 p-5 rounded-2xl border border-border/50">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                     <Phone size={10} /> No. Telefon
                                   </label>
-                                  <p className="font-medium text-foreground">{selectedTenant.full_name}</p>
+                                  <p className="font-medium text-foreground text-sm">{selectedTenant.phone_number || "-"}</p>
                                 </div>
-                                <div>
-                                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                    Syarikat/Bisnes
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                     <MapPin size={10} /> Alamat
                                   </label>
-                                  <p className="font-medium text-foreground">{selectedTenant.business_name || "-"}</p>
+                                  <p className="font-medium text-foreground text-sm truncate">{selectedTenant.address || "-"}</p>
                                 </div>
-                                <div>
-                                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                    No. Telefon
-                                  </label>
-                                  <p className="font-medium text-foreground">{selectedTenant.phone_number || "-"}</p>
-                                </div>
-                                <div>
-                                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                                    Status Akaun
-                                  </label>
-                                  <p className="font-medium text-foreground capitalize">{selectedTenant.status}</p>
+                                
+                                <div className="col-span-2 grid grid-cols-2 gap-2 mt-2">
+                                   {selectedTenant.ssm_file_url && (
+                                      <Button variant="outline" size="sm" className="w-full text-xs h-9 bg-white" onClick={() => window.open(selectedTenant.ssm_file_url, '_blank')}>
+                                         <FileText className="w-3 h-3 mr-2" /> Lihat Sijil SSM
+                                      </Button>
+                                   )}
+                                   {selectedTenant.ic_file_url && (
+                                      <Button variant="outline" size="sm" className="w-full text-xs h-9 bg-white" onClick={() => window.open(selectedTenant.ic_file_url, '_blank')}>
+                                         <FileText className="w-3 h-3 mr-2" /> Lihat Salinan IC
+                                      </Button>
+                                   )}
                                 </div>
                               </div>
 
@@ -288,7 +330,7 @@ export function TenantList() {
                                     <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>
                                   ) : tenantTransactions.length > 0 ? (
                                     <Table>
-                                      <TableHeader className="bg-secondary/20 sticky top-0">
+                                      <TableHeader className="bg-secondary/20 sticky top-0 z-10">
                                         <TableRow className="h-9">
                                           <TableHead className="text-xs">Tarikh</TableHead>
                                           <TableHead className="text-xs">Keterangan</TableHead>
