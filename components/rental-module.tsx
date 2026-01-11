@@ -245,7 +245,7 @@ export function RentalModule() {
                 <CardHeader className="pb-4 bg-secondary/30 border-b border-border/30">
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-foreground font-serif text-xl">{rental.location_name}</CardTitle>
-                    <Badge className="bg-emerald-100 text-emerald-800 border-none capitalize">{rental.status}</Badge>
+                    <Badge className="bg-brand-green/10 text-brand-green border-none capitalize">{rental.status}</Badge>
                   </div>
                   <CardDescription>No. Petak: <strong>{rental.stall_number}</strong></CardDescription>
                 </CardHeader>
@@ -357,7 +357,7 @@ export function RentalModule() {
                     <TableRow key={pay.id} className="border-border/30 hover:bg-secondary/20 transition-colors">
                       <TableCell className="pl-6 font-mono text-xs text-muted-foreground">{pay.payment_date}</TableCell>
                       <TableCell className="font-medium text-foreground">{pay.remarks || "Bayaran Sewa"}</TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600">+ RM {Number(pay.amount).toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-bold text-brand-green">+ RM {Number(pay.amount).toFixed(2)}</TableCell>
                       <TableCell className="text-center">
                          {pay.receipt_url ? (
                            <a href={pay.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-xs text-primary underline">
@@ -370,7 +370,7 @@ export function RentalModule() {
                       <TableCell className="text-center pr-6">
                         <Badge 
                           className={pay.status === 'approved' 
-                            ? "bg-emerald-100 text-emerald-800 border-none" 
+                            ? "bg-brand-green/10 text-brand-green border-none" 
                             : "bg-amber-100 text-amber-800 border-none"}
                         >
                           {pay.status === 'approved' ? "Berjaya" : "Diproses"}
