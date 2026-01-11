@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreditCard, Loader2, Upload, FileText, CheckCircle2 } from "lucide-react"
+import { CreditCard, Loader2, Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -27,11 +27,22 @@ export function RentalModule() {
   const [myLocations, setMyLocations] = useState<any[]>([])
   const [history, setHistory] = useState<any[]>([])
   
+  // Tab State Management
+  const viewParam = searchParams.get('view')
+  const [activeTab, setActiveTab] = useState<string>(viewParam === 'history' ? 'history' : 'payment')
+
   const [selectedLocationId, setSelectedLocationId] = useState<string>("")
   const [paymentAmount, setPaymentAmount] = useState<string>("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<"manual" | "billplz">("billplz")
+
+  // Sync tab with URL param
+  useEffect(() => {
+    if (viewParam === 'history') setActiveTab('history')
+    else if (viewParam === 'payment') setActiveTab('payment')
+    else if (viewParam === 'status') setActiveTab('status')
+  }, [viewParam])
 
   // Fetch Data & Handle Billplz Return
   useEffect(() => {
@@ -93,7 +104,6 @@ export function RentalModule() {
 
           // 4. Check for Billplz Return Params
           const billplzId = searchParams.get('billplz[id]')
-          const billplzPaid = searchParams.get('billplz[paid]')
           
           if (billplzId) {
              await verifyBillplzPayment(billplzId, currentTenant.id)
@@ -107,7 +117,7 @@ export function RentalModule() {
     }
     
     init()
-  }, [user, supabase, searchParams])
+  }, [user, supabase, searchParams]) // Keep deps minimal to avoid loops
 
   const fetchHistory = async (tenantId: number) => {
     const { data: histData } = await supabase
@@ -120,7 +130,8 @@ export function RentalModule() {
 
   const verifyBillplzPayment = async (billId: string, tenantId: number) => {
     try {
-      toast.loading("Mengsahihkan pembayaran...")
+      // Don't set full loading to avoid UI flicker, just show toast
+      const toastId = toast.loading("Mengsahihkan pembayaran...")
       
       // Call Edge Function to verify
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('payment-gateway', {
@@ -128,7 +139,6 @@ export function RentalModule() {
       })
 
       if (verifyError) {
-         // Attempt to parse error message if available
          let msg = verifyError.message
          try {
             const body = JSON.parse(verifyError.message)
@@ -142,7 +152,7 @@ export function RentalModule() {
       if (verifyData.paid) {
         const billRef = `Billplz Ref: ${billId}`
         
-        // Check duplicate
+        // Check if already approved/recorded
         const { data: existing } = await supabase
           .from('tenant_payments')
           .select('*')
@@ -151,12 +161,14 @@ export function RentalModule() {
           .maybeSingle()
           
         if (existing) {
-          toast.dismiss()
+          toast.dismiss(toastId)
           toast.success("Pembayaran telah direkodkan.")
+          // Redirect to history view to clear params
+          router.replace('/dashboard?module=rentals&view=history')
           return
         }
 
-        // Find pending
+        // Find pending payment record created before redirect
         const { data: pendingRecord } = await supabase
           .from('tenant_payments')
           .select('*')
@@ -169,26 +181,30 @@ export function RentalModule() {
              await supabase.from('transactions').update({ status: 'approved' }).eq('id', pendingRecord.transaction_id)
            }
            
-           toast.dismiss()
+           toast.dismiss(toastId)
            toast.success("Pembayaran berjaya disahkan!")
-           fetchHistory(tenantId)
+           
+           // Refresh history and redirect
+           await fetchHistory(tenantId)
+           router.replace('/dashboard?module=rentals&view=history')
         } else {
-           // It might be a new payment that hasn't been recorded yet (if redirect happened too fast or edge case)
-           // But usually flow is Create -> Redirect -> Return -> Verify.
-           // If we are here, we verify.
-           toast.dismiss()
-           toast.success("Pembayaran disahkan.")
+           // Edge case: Record missing locally but paid at gateway
+           toast.dismiss(toastId)
+           toast.success("Pembayaran disahkan (Rekod baru).")
+           router.replace('/dashboard?module=rentals&view=history')
         }
       } else {
-        toast.dismiss()
+        toast.dismiss(toastId)
         toast.error("Pembayaran tidak berjaya atau dibatalkan.")
+        // Redirect back to payment view to retry
+        router.replace('/dashboard?module=rentals&view=payment')
       }
-      
-      router.replace('/dashboard?module=rentals')
 
     } catch (e: any) {
       toast.dismiss()
       toast.error("Ralat pengesahan: " + e.message)
+      // On error, stay on payment page
+      router.replace('/dashboard?module=rentals&view=payment')
     }
   }
 
@@ -211,7 +227,6 @@ export function RentalModule() {
     e.preventDefault()
     if (!tenant || !selectedLocationId) return
 
-    // VALIDATION
     if (paymentMethod === 'manual' && !receiptFile) {
        toast.error("Sila muat naik resit pembayaran untuk rekod manual.")
        return
@@ -254,7 +269,8 @@ export function RentalModule() {
             name: tenant.full_name,
             amount: paymentAmount,
             description: `Sewa ${selectedLoc?.location_name} (${selectedLoc?.stall_number})`,
-            redirect_url: `${window.location.origin}/dashboard`
+            // IMPORTANT: Redirect explicitly to rentals module
+            redirect_url: `${window.location.origin}/dashboard?module=rentals`
           }
         })
 
@@ -279,7 +295,6 @@ export function RentalModule() {
       const desc = `Sewa - ${selectedLoc?.location_name} (${selectedLoc?.stall_number})`
 
       // USE SECURE RPC CALL
-      // This bypasses RLS issues by running as Security Definer on the server
       const { data: rpcData, error: rpcError } = await supabase.rpc('process_rental_payment', {
         p_tenant_id: tenant.id,
         p_amount: parseFloat(paymentAmount),
@@ -299,6 +314,8 @@ export function RentalModule() {
          setReceiptFile(null)
          fetchHistory(tenant.id)
          setIsProcessing(false)
+         // Switch to history tab on success for manual payment too
+         setActiveTab("history")
       }
 
     } catch (err: any) {
@@ -328,7 +345,7 @@ export function RentalModule() {
         <p className="text-muted-foreground">Urus status sewa dan pembayaran tapak untuk <strong>{tenant.business_name}</strong></p>
       </div>
 
-      <Tabs defaultValue="payment" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted p-1 rounded-xl">
           <TabsTrigger value="payment" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg">
             Bayar Sewa
