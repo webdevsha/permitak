@@ -104,7 +104,7 @@ export function AccountingModule() {
       name: "Operating Account", 
       percent: "60%", 
       amount: totalIncome * 0.60, 
-      color: "bg-emerald-50 text-emerald-600 border-emerald-100", 
+      color: "bg-brand-blue/10 text-brand-blue border-brand-blue/20", 
       icon: Wallet,
       tag: "Actionable"
     },
@@ -120,7 +120,7 @@ export function AccountingModule() {
       name: "Zakat", 
       percent: "2.5%", 
       amount: totalIncome * 0.025, 
-      color: "bg-red-50 text-red-600 border-red-100", 
+      color: "bg-brand-green/10 text-brand-green border-brand-green/20", 
       icon: Heart,
       tag: "Do Not Touch"
     },
@@ -425,7 +425,7 @@ export function AccountingModule() {
             </div>
             <div className="text-right">
               <p className="text-muted-foreground text-xs font-bold mb-1">Status Agihan</p>
-              <Badge className="bg-emerald-100 text-emerald-700 border-none px-4 py-1 rounded-full font-bold">
+              <Badge className="bg-brand-green/10 text-brand-green border-none px-4 py-1 rounded-full font-bold">
                 100% DIAGIH
               </Badge>
             </div>
@@ -521,7 +521,7 @@ export function AccountingModule() {
                         </div>
                       </TableCell>
                       <TableCell
-                        className={`text-right font-bold text-lg ${transaction.type === "income" ? "text-emerald-600" : "text-red-500"}`}
+                        className={`text-right font-bold text-lg ${transaction.type === "income" ? "text-brand-green" : "text-red-500"}`}
                       >
                         {transaction.type === "income" ? "+" : "-"} RM {Number(transaction.amount).toFixed(2)}
                       </TableCell>
@@ -540,7 +540,7 @@ export function AccountingModule() {
                           className={cn(
                             "rounded-full px-4 py-1 text-[10px] font-bold uppercase tracking-wider",
                             transaction.status === "approved"
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                              ? "bg-brand-green/10 text-brand-green border-brand-green/20"
                               : "bg-orange-50 text-orange-600 border-orange-100",
                           )}
                         >
