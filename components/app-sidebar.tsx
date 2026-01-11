@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription, SheetHeader } from "@/components/ui/sheet"
 import { useAuth } from "@/components/providers/auth-provider"
+import Image from "next/image"
 
 interface SidebarProps {
   activeModule: string
@@ -60,26 +61,51 @@ export function AppSidebar({ activeModule, setActiveModule, isCollapsed, setIsCo
         isCollapsed ? "w-[80px]" : "w-[280px]"
       )}
     >
-      <div className="h-20 flex items-center justify-between px-6 border-b border-border/50">
+      <div className={cn("flex items-center border-b border-border/50", isCollapsed ? "justify-center h-20" : "justify-between px-6 h-24")}>
         {!isCollapsed && (
-          <span className="font-serif font-bold text-2xl text-primary italic tracking-tight animate-in fade-in duration-300">
-            Permit Akaun
-          </span>
+          <div className="relative w-40 h-16 animate-in fade-in duration-300">
+             <Image 
+               src="/logo.png" 
+               alt="Permit Akaun" 
+               fill 
+               className="object-contain object-left"
+               priority
+             />
+          </div>
         )}
         {isCollapsed && (
-           <span className="font-serif font-bold text-xl text-primary italic tracking-tight mx-auto">
-            PA
-          </span>
+           <div className="relative w-10 h-10">
+              <Image 
+               src="/logo.png" 
+               alt="PA" 
+               fill 
+               className="object-cover object-left" 
+               style={{ objectPosition: '0 50%' }} // Crops to just the icon
+              />
+           </div>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className={cn("hidden md:flex", isCollapsed && "mx-auto")}
+          className={cn("hidden md:flex text-muted-foreground hover:text-primary", isCollapsed && "mx-auto mt-4 hidden")}
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
            {isCollapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
         </Button>
       </div>
+      
+      {isCollapsed && (
+         <div className="flex justify-center py-2 border-b border-border/50">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="text-muted-foreground"
+            >
+              <PanelLeft className="h-5 w-5" />
+            </Button>
+         </div>
+      )}
 
       <div className="flex-1 py-6 flex flex-col gap-2 px-3 overflow-y-auto">
         {navItems.map((item) => (
@@ -115,7 +141,7 @@ export function AppSidebar({ activeModule, setActiveModule, isCollapsed, setIsCo
             </div>
             {!isCollapsed && (
               <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-bold truncate">{user?.email?.split('@')[0]}</p>
+                <p className="text-sm font-bold truncate text-foreground">{user?.email?.split('@')[0]}</p>
                 <p className="text-[10px] uppercase text-muted-foreground tracking-wider truncate">{userRole}</p>
               </div>
             )}
@@ -185,9 +211,14 @@ export function MobileNav({ activeModule, setActiveModule }: MobileNavProps) {
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px] sm:w-[350px] p-0">
                <SheetHeader className="p-6 border-b border-border/50 bg-secondary/10">
-                  <SheetTitle className="font-serif font-bold text-2xl text-primary italic tracking-tight text-left">
-                     Permit Akaun
-                  </SheetTitle>
+                  <div className="relative w-40 h-12 mb-2">
+                    <Image 
+                      src="/logo.png" 
+                      alt="Permit Akaun" 
+                      fill 
+                      className="object-contain object-left"
+                    />
+                  </div>
                   <SheetDescription className="text-left text-xs">
                      Sistem Pengurusan Bersepadu
                   </SheetDescription>
@@ -232,7 +263,14 @@ export function MobileNav({ activeModule, setActiveModule }: MobileNavProps) {
                </div>
             </SheetContent>
          </Sheet>
-         <span className="font-serif font-bold text-lg text-primary italic">Permit Akaun</span>
+         <div className="relative w-28 h-8">
+            <Image 
+              src="/logo.png" 
+              alt="Permit Akaun" 
+              fill 
+              className="object-contain object-left"
+            />
+         </div>
       </div>
       <div className="flex items-center gap-2">
          <Button variant="ghost" size="icon" className="rounded-full">
