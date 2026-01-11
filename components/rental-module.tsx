@@ -9,15 +9,18 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreditCard, Loader2, Upload, FileText } from "lucide-react"
+import { CreditCard, Loader2, Upload, FileText, CheckCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
-import { Tenant, Transaction } from "@/types/supabase-types"
+import { Tenant } from "@/types/supabase-types"
+import { useSearchParams, useRouter } from "next/navigation"
 
 export function RentalModule() {
   const { user } = useAuth()
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   
   const [loading, setLoading] = useState(true)
   const [tenant, setTenant] = useState<Tenant | null>(null)
@@ -28,23 +31,24 @@ export function RentalModule() {
   const [paymentAmount, setPaymentAmount] = useState<string>("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<"manual" | "billplz">("billplz")
 
-  // Fetch Data
+  // Fetch Data & Handle Billplz Return
   useEffect(() => {
-    async function fetchData() {
+    async function init() {
       if (!user) return
       
       try {
         setLoading(true)
         
         // 1. Get Tenant Profile
+        let currentTenant = null
         const { data: tenantData } = await supabase
           .from('tenants')
           .select('*')
           .eq('profile_id', user.id)
           .maybeSingle()
-          
-        let currentTenant = tenantData
+        currentTenant = tenantData
         
         if (!currentTenant && user.email) {
            const { data: tenantByEmail } = await supabase
@@ -58,13 +62,10 @@ export function RentalModule() {
         if (currentTenant) {
           setTenant(currentTenant)
           
-          // 2. Get Assigned Locations
+          // 2. Get Locations
           const { data: locData } = await supabase
             .from('tenant_locations')
-            .select(`
-              *,
-              locations:location_id (*)
-            `)
+            .select(`*, locations:location_id (*)`)
             .eq('tenant_id', currentTenant.id)
             
           if (locData) {
@@ -87,16 +88,17 @@ export function RentalModule() {
              }
           }
 
-          // 3. Get Payment History from NEW TABLE
-          const { data: payData } = await supabase
-            .from('tenant_payments')
-            .select('*')
-            .eq('tenant_id', currentTenant.id)
-            .order('payment_date', { ascending: false })
-            
-          if (payData) setHistory(payData)
+          // 3. Get History
+          await fetchHistory(currentTenant.id)
+
+          // 4. Check for Billplz Return Params
+          const billplzId = searchParams.get('billplz[id]')
+          const billplzPaid = searchParams.get('billplz[paid]')
+          
+          if (billplzId) {
+             await verifyBillplzPayment(billplzId, currentTenant.id)
+          }
         }
-        
       } catch (err) {
         console.error(err)
       } finally {
@@ -104,8 +106,91 @@ export function RentalModule() {
       }
     }
     
-    fetchData()
-  }, [user, supabase])
+    init()
+  }, [user, supabase, searchParams])
+
+  const fetchHistory = async (tenantId: number) => {
+    const { data: histData } = await supabase
+      .from('tenant_payments')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('payment_date', { ascending: false })
+    if (histData) setHistory(histData)
+  }
+
+  const verifyBillplzPayment = async (billId: string, tenantId: number) => {
+    try {
+      toast.loading("Mengsahihkan pembayaran...")
+      
+      // Call Edge Function to verify
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('payment-gateway', {
+        body: { action: 'verify_bill', bill_id: billId }
+      })
+
+      if (verifyError) {
+         // Attempt to parse error message if available
+         let msg = verifyError.message
+         try {
+            const body = JSON.parse(verifyError.message)
+            if (body.error) msg = body.error
+         } catch(e) {}
+         throw new Error(msg || "Ralat menghubungi gateway")
+      }
+
+      if (!verifyData) throw new Error("Tiada data dari gateway")
+
+      if (verifyData.paid) {
+        const billRef = `Billplz Ref: ${billId}`
+        
+        // Check duplicate
+        const { data: existing } = await supabase
+          .from('tenant_payments')
+          .select('*')
+          .eq('remarks', billRef)
+          .eq('status', 'approved')
+          .maybeSingle()
+          
+        if (existing) {
+          toast.dismiss()
+          toast.success("Pembayaran telah direkodkan.")
+          return
+        }
+
+        // Find pending
+        const { data: pendingRecord } = await supabase
+          .from('tenant_payments')
+          .select('*')
+          .eq('remarks', billRef)
+          .maybeSingle()
+
+        if (pendingRecord) {
+           await supabase.from('tenant_payments').update({ status: 'approved' }).eq('id', pendingRecord.id)
+           if (pendingRecord.transaction_id) {
+             await supabase.from('transactions').update({ status: 'approved' }).eq('id', pendingRecord.transaction_id)
+           }
+           
+           toast.dismiss()
+           toast.success("Pembayaran berjaya disahkan!")
+           fetchHistory(tenantId)
+        } else {
+           // It might be a new payment that hasn't been recorded yet (if redirect happened too fast or edge case)
+           // But usually flow is Create -> Redirect -> Return -> Verify.
+           // If we are here, we verify.
+           toast.dismiss()
+           toast.success("Pembayaran disahkan.")
+        }
+      } else {
+        toast.dismiss()
+        toast.error("Pembayaran tidak berjaya atau dibatalkan.")
+      }
+      
+      router.replace('/dashboard?module=rentals')
+
+    } catch (e: any) {
+      toast.dismiss()
+      toast.error("Ralat pengesahan: " + e.message)
+    }
+  }
 
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const locId = e.target.value
@@ -126,81 +211,99 @@ export function RentalModule() {
     e.preventDefault()
     if (!tenant || !selectedLocationId) return
 
+    // VALIDATION
+    if (paymentMethod === 'manual' && !receiptFile) {
+       toast.error("Sila muat naik resit pembayaran untuk rekod manual.")
+       return
+    }
+
     setIsProcessing(true)
     
     try {
-      let receiptUrl = null
-
-      // Upload Receipt if exists
-      if (receiptFile) {
-        const fileExt = receiptFile.name.split('.').pop()
-        const fileName = `${tenant.id}-${Math.random()}.${fileExt}`
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('receipts')
-          .upload(fileName, receiptFile)
-
-        if (uploadError) throw uploadError
-        
-        // Get Public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(fileName)
-          
-        receiptUrl = publicUrl
-      }
-
       const selectedLoc = myLocations.find(l => l.id.toString() === selectedLocationId)
       const payDate = new Date().toISOString().split('T')[0]
-      const payDesc = `Bayaran Sewa - ${selectedLoc?.location_name} (${selectedLoc?.stall_number})`
+      let receiptUrl = null
+      let billRef = ""
       
-      // 1. Insert into Accounting Transactions (The Ledger)
-      const { data: txData, error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          tenant_id: tenant.id,
-          amount: parseFloat(paymentAmount),
-          type: 'income',
-          category: 'Servis', // Updated to 'Servis' to align with "Cash In" categories (jualan, servis, lain-lain)
-          description: payDesc,
-          status: 'pending', 
-          date: payDate,
-          receipt_url: receiptUrl // Optional fallback
+      // MANUAL UPLOAD
+      if (paymentMethod === 'manual') {
+        if (receiptFile) {
+          const fileExt = receiptFile.name.split('.').pop()
+          const fileName = `${tenant.id}-${Date.now()}.${fileExt}`
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('receipts')
+            .upload(fileName, receiptFile)
+
+          if (uploadError) throw new Error("Upload Gagal: " + uploadError.message)
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('receipts')
+            .getPublicUrl(fileName)
+          receiptUrl = publicUrl
+        }
+        billRef = `Bayaran Manual - ${selectedLoc?.location_name} (${selectedLoc?.stall_number})`
+      } 
+      
+      // BILLPLZ GATEWAY
+      else if (paymentMethod === 'billplz') {
+        const { data: billData, error: billError } = await supabase.functions.invoke('payment-gateway', {
+          body: {
+            action: 'create_bill',
+            email: tenant.email,
+            name: tenant.full_name,
+            amount: paymentAmount,
+            description: `Sewa ${selectedLoc?.location_name} (${selectedLoc?.stall_number})`,
+            redirect_url: `${window.location.origin}/dashboard`
+          }
         })
-        .select()
-        .single()
 
-      if (txError) throw txError
+        if (billError) {
+           let errMsg = billError.message
+           try {
+             const body = JSON.parse(await billError.context.text())
+             if (body.error) errMsg = body.error
+           } catch(e) {}
+           throw new Error(errMsg || "Gagal menghubungi Billplz")
+        }
 
-      // 2. Insert into Tenant Payments (The History Record)
-      const { error: payError } = await supabase
-        .from('tenant_payments')
-        .insert({
-          tenant_id: tenant.id,
-          transaction_id: txData.id,
-          amount: parseFloat(paymentAmount),
-          payment_date: payDate,
-          receipt_url: receiptUrl,
-          status: 'pending',
-          remarks: payDesc
-        })
+        if (!billData || !billData.url) {
+           if (billData?.error) throw new Error(JSON.stringify(billData.error))
+           throw new Error("Respon tidak sah dari gateway")
+        }
+        
+        receiptUrl = billData.url
+        billRef = `Billplz Ref: ${billData.id}`
+      }
 
-      if (payError) throw payError
+      const desc = `Sewa - ${selectedLoc?.location_name} (${selectedLoc?.stall_number})`
 
-      toast.success("Pembayaran Berjaya dihantar! Menunggu pengesahan.")
-      setReceiptFile(null)
-      
-      // Refresh history
-      const { data: histData } = await supabase
-        .from('tenant_payments')
-        .select('*')
-        .eq('tenant_id', tenant.id)
-        .order('payment_date', { ascending: false })
-      
-      if (histData) setHistory(histData)
+      // USE SECURE RPC CALL
+      // This bypasses RLS issues by running as Security Definer on the server
+      const { data: rpcData, error: rpcError } = await supabase.rpc('process_rental_payment', {
+        p_tenant_id: tenant.id,
+        p_amount: parseFloat(paymentAmount),
+        p_date: payDate,
+        p_receipt_url: receiptUrl || "",
+        p_description: desc,
+        p_category: 'Servis',
+        p_remarks: billRef
+      })
+
+      if (rpcError) throw new Error("DB Error: " + rpcError.message)
+
+      if (paymentMethod === 'billplz' && receiptUrl) {
+         window.location.href = receiptUrl
+      } else {
+         toast.success("Bukti pembayaran dihantar! Menunggu pengesahan admin.")
+         setReceiptFile(null)
+         fetchHistory(tenant.id)
+         setIsProcessing(false)
+      }
 
     } catch (err: any) {
-      toast.error("Gagal memproses bayaran: " + err.message)
-    } finally {
+      console.error(err)
+      toast.error("Ralat: " + err.message)
       setIsProcessing(false)
     }
   }
@@ -219,19 +322,19 @@ export function RentalModule() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
         <h2 className="text-3xl font-serif font-bold text-foreground">Pengurusan Sewa</h2>
         <p className="text-muted-foreground">Urus status sewa dan pembayaran tapak untuk <strong>{tenant.business_name}</strong></p>
       </div>
 
-      <Tabs defaultValue="status" className="w-full">
+      <Tabs defaultValue="payment" className="w-full">
         <TabsList className="bg-muted p-1 rounded-xl">
-          <TabsTrigger value="status" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg">
-            Status Sewa
-          </TabsTrigger>
           <TabsTrigger value="payment" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg">
             Bayar Sewa
+          </TabsTrigger>
+          <TabsTrigger value="status" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg">
+            Status Tapak
           </TabsTrigger>
           <TabsTrigger value="history" className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg">
             Sejarah Bayaran
@@ -274,12 +377,35 @@ export function RentalModule() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-foreground font-serif">
                 <CreditCard className="text-primary" />
-                Pembayaran Sewa Pantas
+                Pembayaran Sewa
               </CardTitle>
-              <CardDescription>Selesaikan bayaran harian atau bulanan anda secara atas talian</CardDescription>
+              <CardDescription>Pilih kaedah pembayaran anda</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handlePayment} className="space-y-6">
+                
+                {/* Method Selector */}
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div 
+                    onClick={() => setPaymentMethod('billplz')}
+                    className={`cursor-pointer border rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'billplz' ? 'bg-brand-blue/5 border-brand-blue ring-1 ring-brand-blue' : 'bg-white hover:bg-secondary/50'}`}
+                  >
+                    <div className="h-8 w-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue">
+                      <CreditCard size={18} />
+                    </div>
+                    <span className="font-bold text-sm">FPX / Online Banking</span>
+                  </div>
+                  <div 
+                    onClick={() => setPaymentMethod('manual')}
+                    className={`cursor-pointer border rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all ${paymentMethod === 'manual' ? 'bg-brand-blue/5 border-brand-blue ring-1 ring-brand-blue' : 'bg-white hover:bg-secondary/50'}`}
+                  >
+                    <div className="h-8 w-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue">
+                      <Upload size={18} />
+                    </div>
+                    <span className="font-bold text-sm">Resit Manual</span>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Pilih Lokasi & Tapak</Label>
                   <select 
@@ -304,18 +430,20 @@ export function RentalModule() {
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Upload className="w-4 h-4" /> Muat Naik Resit
-                  </Label>
-                  <Input 
-                    type="file" 
-                    accept="image/*,application/pdf"
-                    onChange={handleFileChange}
-                    className="h-12 pt-2 rounded-xl bg-secondary/20 cursor-pointer" 
-                  />
-                  <p className="text-xs text-muted-foreground">Format: JPG, PNG atau PDF (Max 5MB)</p>
-                </div>
+                {paymentMethod === 'manual' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <Label className="flex items-center gap-2">
+                      <Upload className="w-4 h-4" /> Muat Naik Resit (Pindahan Bank)
+                    </Label>
+                    <Input 
+                      type="file" 
+                      accept="image/*,application/pdf"
+                      onChange={handleFileChange}
+                      className="h-12 pt-2 rounded-xl bg-secondary/20 cursor-pointer" 
+                    />
+                    <p className="text-xs text-muted-foreground">Format: JPG, PNG atau PDF (Max 5MB)</p>
+                  </div>
+                )}
 
                 <div className="pt-4">
                   <Button
@@ -324,8 +452,10 @@ export function RentalModule() {
                   >
                     {isProcessing ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memproses...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sedang Proses...
                       </>
+                    ) : paymentMethod === 'billplz' ? (
+                      "Teruskan Pembayaran (FPX)"
                     ) : (
                       "Hantar Bukti Bayaran"
                     )}
