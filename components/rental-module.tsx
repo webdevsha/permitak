@@ -160,7 +160,7 @@ export function RentalModule() {
           tenant_id: tenant.id,
           amount: parseFloat(paymentAmount),
           type: 'income',
-          category: selectedLoc?.rate_type === 'monthly' ? 'Sewa Bulanan' : 'Sewa Harian',
+          category: 'Servis', // Updated to 'Servis' to align with "Cash In" categories (jualan, servis, lain-lain)
           description: payDesc,
           status: 'pending', 
           date: payDate,
