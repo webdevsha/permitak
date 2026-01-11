@@ -189,7 +189,7 @@ export function AccountingModule() {
 
       const txData = {
         description: newTransaction.description,
-        category: newTransaction.category,
+        category: newTransaction.category || "Lain-lain",
         amount: amount,
         type: newTransaction.type,
         status: userRole === 'admin' ? 'approved' : 'pending',
@@ -307,28 +307,20 @@ export function AccountingModule() {
                     onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Keterangan</Label>
-                  <Input
-                    id="description"
-                    className="border-input rounded-xl h-11"
-                    value={newTransaction.description}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })}
-                  />
-                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="type">Jenis</Label>
                     <Select
                       value={newTransaction.type}
-                      onValueChange={(v: "income" | "expense") => setNewTransaction({ ...newTransaction, type: v })}
+                      onValueChange={(v: "income" | "expense") => setNewTransaction({ ...newTransaction, type: v, category: "" })}
                     >
                       <SelectTrigger className="border-input rounded-xl h-11">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="income">Cash In (Sewa)</SelectItem>
-                        <SelectItem value="expense">Cash Out (Kos)</SelectItem>
+                        <SelectItem value="income">Cash In</SelectItem>
+                        <SelectItem value="expense">Cash Out</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -343,6 +335,7 @@ export function AccountingModule() {
                     />
                   </div>
                 </div>
+
                 <div className="grid gap-2">
                   <Label htmlFor="category">Kategori</Label>
                   <Select
@@ -353,14 +346,35 @@ export function AccountingModule() {
                       <SelectValue placeholder="Pilih kategori" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Sewa Harian">Sewa Harian</SelectItem>
-                      <SelectItem value="Sewa Bulanan">Sewa Bulanan</SelectItem>
-                      <SelectItem value="Sewa CBS">Sewa CBS</SelectItem>
-                      <SelectItem value="Penyelenggaraan">Penyelenggaraan</SelectItem>
-                      <SelectItem value="Utiliti">Utiliti</SelectItem>
-                      <SelectItem value="Lain-lain">Lain-lain</SelectItem>
+                      {newTransaction.type === 'income' ? (
+                        <>
+                          <SelectItem value="Jualan">Jualan</SelectItem>
+                          <SelectItem value="Servis">Servis</SelectItem>
+                          <SelectItem value="Lain-lain">Lain-lain</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="Operasi">Operasi</SelectItem>
+                          <SelectItem value="Sewa">Sewa</SelectItem>
+                          <SelectItem value="Bil">Bil</SelectItem>
+                          <SelectItem value="Marketing">Marketing</SelectItem>
+                          <SelectItem value="Gaji">Gaji</SelectItem>
+                          <SelectItem value="Lain-lain">Lain-lain</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Keterangan</Label>
+                  <Input
+                    id="description"
+                    className="border-input rounded-xl h-11"
+                    value={newTransaction.description}
+                    onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })}
+                    placeholder="Contoh: Jualan nasi lemak / Bayar bil elektrik"
+                  />
                 </div>
                 
                 <div className="grid gap-2 animate-in fade-in slide-in-from-top-1">
