@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
+import Image from "next/image"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -45,9 +46,6 @@ export function LoginForm() {
         // Critical: Refresh router to sync server cookies before navigation
         router.refresh() 
         router.push("/dashboard")
-        
-        // Note: We intentionally DO NOT set loading(false) here. 
-        // We want the button to stay in "Redirecting" state until the page unmounts.
       }
     } catch (err: any) {
       console.error("Unexpected Login Error:", err)
@@ -62,12 +60,20 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md bg-white/90 backdrop-blur-sm border-primary/20 shadow-xl">
-      <CardHeader className="text-center space-y-1">
-        <CardTitle className="text-3xl font-serif font-bold text-primary">Permit Akaun</CardTitle>
-        <CardDescription className="text-muted-foreground">Selamat datang kembali. Sila log masuk.</CardDescription>
+    <Card className="w-full max-w-md bg-white border-border shadow-2xl rounded-3xl overflow-hidden">
+      <CardHeader className="text-center space-y-2 pt-10 pb-6 bg-secondary/20 border-b border-border/30">
+        <div className="relative w-48 h-20 mx-auto mb-2">
+           <Image 
+             src="/logo.png" 
+             alt="Permit Akaun" 
+             fill 
+             className="object-contain"
+             priority
+           />
+        </div>
+        <p className="text-muted-foreground font-medium">Sistem Pengurusan Permit & Akaun</p>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 p-8">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Emel</Label>
@@ -75,7 +81,7 @@ export function LoginForm() {
               id="email"
               type="email"
               placeholder="nama@contoh.com"
-              className="border-primary/20 focus:ring-primary/50 bg-white/50"
+              className="border-input focus:ring-primary/50 bg-white h-12 rounded-xl"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
@@ -83,12 +89,21 @@ export function LoginForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Kata Laluan</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Kata Laluan</Label>
+              <button 
+                className="text-xs text-primary font-semibold hover:underline" 
+                disabled={loading}
+                onClick={() => toast.info("Sila hubungi admin untuk set semula kata laluan.")}
+              >
+                Lupa kata laluan?
+              </button>
+            </div>
             <Input
               id="password"
               type="password"
               placeholder="••••••••"
-              className="border-primary/20 focus:ring-primary/50 bg-white/50"
+              className="border-input focus:ring-primary/50 bg-white h-12 rounded-xl"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
@@ -96,23 +111,26 @@ export function LoginForm() {
             />
           </div>
         </div>
+        
         <Button 
           onClick={handleLogin} 
           disabled={loading}
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-12 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm transition-all shadow-lg shadow-primary/20"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-12 text-md rounded-xl shadow-lg shadow-primary/25 transition-all active:scale-[0.98]"
         >
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
               {statusText}
             </>
           ) : (
             "Log Masuk"
           )}
         </Button>
-        <div className="text-center space-y-2">
-          <button className="text-sm text-primary hover:underline block w-full" disabled={loading}>Lupa kata laluan?</button>
-          <button onClick={handleSignUp} className="text-xs text-muted-foreground hover:text-primary" disabled={loading}>Belum ada akaun?</button>
+        
+        <div className="text-center pt-2">
+          <p className="text-sm text-muted-foreground">
+            Belum ada akaun? <button onClick={handleSignUp} className="text-primary font-bold hover:underline">Hubungi Admin</button>
+          </p>
         </div>
       </CardContent>
     </Card>
