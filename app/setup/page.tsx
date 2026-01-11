@@ -110,7 +110,7 @@ export default function SetupPage() {
                                  tenant_id: tData.id,
                                  amount: 50.00,
                                  type: 'income',
-                                 category: 'Sewa Bulanan',
+                                 category: 'Servis', // Changed from 'Sewa Bulanan' to align with new categories
                                  status: 'approved',
                                  date: date45DaysAgo.toISOString().split('T')[0],
                                  description: 'Bayaran Sewa Bulan Lepas'
