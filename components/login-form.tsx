@@ -10,6 +10,7 @@ import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -55,10 +56,6 @@ export function LoginForm() {
     }
   }
 
-  const handleSignUp = async () => {
-     toast.info("Sila hubungi admin untuk pendaftaran akaun.")
-  }
-
   return (
     <Card className="w-full max-w-md bg-white border-border shadow-2xl rounded-3xl overflow-hidden">
       <CardHeader className="text-center space-y-2 pt-10 pb-6 bg-secondary/20 border-b border-border/30">
@@ -71,7 +68,7 @@ export function LoginForm() {
              priority
            />
         </div>
-        <p className="text-muted-foreground font-medium">Sistem Pengurusan Permit & Akaun</p>
+        <p className="text-muted-foreground font-medium">Sistem Pengurusan Bersepadu</p>
       </CardHeader>
       <CardContent className="space-y-6 p-8">
         <div className="space-y-4">
@@ -129,7 +126,7 @@ export function LoginForm() {
         
         <div className="text-center pt-2">
           <p className="text-sm text-muted-foreground">
-            Belum ada akaun? <button onClick={handleSignUp} className="text-primary font-bold hover:underline">Hubungi Admin</button>
+            Belum ada akaun? <Link href="/signup" className="text-primary font-bold hover:underline">Daftar Sekarang</Link>
           </p>
         </div>
       </CardContent>
