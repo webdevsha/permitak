@@ -51,6 +51,7 @@ export function AppSidebar({ activeModule, setActiveModule, isCollapsed, setIsCo
           ]
         : [
             { id: "rentals", label: "Sewa Saya", icon: Home },
+            { id: "accounting", label: "Akaun", icon: Receipt },
             { id: "settings", label: "Tetapan", icon: Settings },
           ]
 
@@ -151,7 +152,7 @@ export function AppSidebar({ activeModule, setActiveModule, isCollapsed, setIsCo
           variant="ghost"
           onClick={() => signOut()}
           className={cn(
-            "w-full mt-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+            "w-full mt-2 text-muted-foreground hover:text-destructive hover:text-destructive/90 hover:bg-destructive/10",
             isCollapsed ? "h-10 w-10 p-0 justify-center mx-auto" : "justify-start px-4"
           )}
           title="Log Keluar"
@@ -192,6 +193,7 @@ export function MobileNav({ activeModule, setActiveModule }: MobileNavProps) {
           ]
         : [
             { id: "rentals", label: "Sewa Saya", icon: Home },
+            { id: "accounting", label: "Akaun", icon: Receipt },
             { id: "settings", label: "Tetapan", icon: Settings },
           ]
 

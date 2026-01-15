@@ -39,6 +39,8 @@ import { toast } from "sonner"
 import useSWR from "swr"
 import { createClient } from "@/utils/supabase/client"
 import { cn } from "@/lib/utils"
+import { SubscriptionPlans } from "@/components/subscription-plans"
+import { useAuth } from "@/components/providers/auth-provider"
 
 // Fetcher: Get ALL transactions
 const fetcher = async () => {
@@ -65,6 +67,7 @@ const fetcher = async () => {
 }
 
 export function AccountingModule() {
+  const { role } = useAuth()
   const [userRole, setUserRole] = useState<string>("")
   const { data: transactions, mutate, isLoading } = useSWR('transactions_master_ledger_v3', fetcher)
   const supabase = createClient()
@@ -84,9 +87,20 @@ export function AccountingModule() {
   })
 
   useEffect(() => {
-    const role = sessionStorage.getItem("userRole") || "admin"
-    setUserRole(role)
-  }, [])
+    // Prefer the auth hook role, fallback to session storage if needed (though auth hook is better)
+    if (role) {
+       setUserRole(role)
+    } else {
+       const storedRole = sessionStorage.getItem("userRole") || "tenant"
+       setUserRole(storedRole)
+    }
+  }, [role])
+
+  // --- RESTRICTED VIEW FOR TENANTS ---
+  // If role is tenant, show Subscription Plans instead of Accounting Dashboard
+  if (userRole === 'tenant') {
+    return <SubscriptionPlans />
+  }
 
   // ------------------------------------------------------------------
   // 7-TABUNG CALCULATION ENGINE
