@@ -85,7 +85,7 @@ export default function SignupPage() {
            }
         }
 
-        // 3. Create Tenant Record
+        // 3. Create Tenant Record (Status Pending)
         const { error: tenantError } = await supabase
           .from('tenants')
           .insert({
@@ -98,15 +98,14 @@ export default function SignupPage() {
             ic_number: formData.icNumber,
             ssm_file_url: ssmUrl,
             ic_file_url: icUrl,
-            status: 'active'
+            status: 'pending' // Require Admin Approval
           })
 
         if (tenantError) {
           console.error("Tenant creation error:", tenantError)
-          // Continue anyway, user can update profile later
         }
 
-        toast.success("Pendaftaran berjaya! Sila log masuk.")
+        toast.success("Pendaftaran berjaya! Akaun anda sedang menunggu pengesahan admin.")
         router.push("/")
       }
 

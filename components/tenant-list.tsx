@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
-import { MessageSquare, Eye, Phone, Loader2, AlertCircle, Calendar, FileText, Download, Building, MapPin } from "lucide-react"
+import { MessageSquare, Eye, Phone, Loader2, AlertCircle, Calendar, FileText, Download, Building, MapPin, CheckCircle, XCircle } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,8 @@ import {
 import useSWR from "swr"
 import { createClient } from "@/utils/supabase/client"
 import Image from "next/image"
+import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 // Fetcher to get tenants with their locations and latest payment
 const fetchTenants = async () => {
@@ -50,8 +52,8 @@ const fetchTenants = async () => {
 
     const lastPayment = payments?.[0]
     
-    // --- STATUS LOGIC ---
-    let status = 'active'
+    // --- PAYMENT STATUS LOGIC ---
+    let paymentStatus = 'active'
     let overdueLabel = ''
     
     // Determine Rate Type (Weekly vs Monthly)
@@ -59,7 +61,7 @@ const fetchTenants = async () => {
     const rateType = loc?.rate_type || 'monthly'
 
     if (!lastPayment) {
-       status = 'new'
+       paymentStatus = 'new'
     } else {
        const lastDate = new Date(lastPayment.payment_date)
        const today = new Date()
@@ -68,20 +70,20 @@ const fetchTenants = async () => {
 
        if (rateType === 'monthly') {
          if (daysDiff > 35) { // Give 5 days buffer
-           status = 'overdue'
+           paymentStatus = 'overdue'
            const months = Math.floor(daysDiff / 30)
            overdueLabel = `${months} Bulan`
          } else {
-           status = 'paid'
+           paymentStatus = 'paid'
          }
        } else {
          // Weekly (Daily/Khemah/CBS) - Renews every 7 days
          if (daysDiff > 10) { // Give 3 days buffer
-           status = 'overdue'
+           paymentStatus = 'overdue'
            const weeks = Math.floor(daysDiff / 7)
            overdueLabel = `${weeks} Minggu`
          } else {
-           status = 'paid'
+           paymentStatus = 'paid'
          }
        }
     }
@@ -96,7 +98,7 @@ const fetchTenants = async () => {
       locations: locs?.map((l: any) => l.locations?.name) || [],
       lastPaymentDate: dateDisplay,
       lastPaymentAmount: lastPayment?.amount || 0,
-      computedStatus: status,
+      paymentStatus, // For payment tracking
       overdueLabel
     }
   }))
@@ -105,10 +107,11 @@ const fetchTenants = async () => {
 }
 
 export function TenantList() {
-  const { data: tenants, isLoading } = useSWR('enriched_tenants_v7', fetchTenants)
+  const { data: tenants, isLoading, mutate } = useSWR('enriched_tenants_v8', fetchTenants)
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
   const [tenantTransactions, setTenantTransactions] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
   const supabase = createClient()
 
   const handleViewTenant = async (tenant: any) => {
@@ -126,8 +129,27 @@ export function TenantList() {
     setLoadingHistory(false)
   }
 
-  const getStatusBadge = (tenant: any) => {
-    switch (tenant.computedStatus) {
+  const handleStatusChange = async (tenantId: number, newStatus: string) => {
+    setIsUpdating(true)
+    try {
+      const { error } = await supabase
+        .from('tenants')
+        .update({ status: newStatus })
+        .eq('id', tenantId)
+
+      if (error) throw error
+      
+      toast.success(`Status peniaga berjaya dikemaskini ke ${newStatus}`)
+      mutate() // Refresh list
+    } catch (err: any) {
+      toast.error("Gagal mengemaskini status: " + err.message)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const getPaymentStatusBadge = (tenant: any) => {
+    switch (tenant.paymentStatus) {
       case "paid":
         return <Badge className="bg-brand-green/10 text-brand-green border-none hover:bg-brand-green/20">Berbayar</Badge>
       case "overdue":
@@ -173,7 +195,8 @@ export function TenantList() {
                 <TableHead className="text-foreground font-bold">Nama Peniaga</TableHead>
                 <TableHead className="text-foreground font-bold">Lokasi Tapak</TableHead>
                 <TableHead className="text-foreground font-bold">Bayaran Terakhir</TableHead>
-                <TableHead className="text-foreground font-bold">Status</TableHead>
+                <TableHead className="text-foreground font-bold">Status Bayaran</TableHead>
+                <TableHead className="text-foreground font-bold text-center">Status Akaun</TableHead>
                 <TableHead className="text-right text-foreground font-bold">Tindakan</TableHead>
               </TableRow>
             </TableHeader>
@@ -192,7 +215,13 @@ export function TenantList() {
                          </div>
                        )}
                        <div>
-                        <div className="font-medium text-foreground">{tenant.full_name}</div>
+                        <div className={cn(
+                          "font-medium transition-colors",
+                          tenant.status === 'active' ? "text-brand-green font-bold" : "text-foreground"
+                        )}>
+                          {tenant.full_name}
+                          {tenant.status === 'active' && <CheckCircle className="inline-block w-3 h-3 ml-1" />}
+                        </div>
                         <div className="text-xs text-muted-foreground font-mono">
                           {tenant.business_name || "Tiada Nama Bisnes"}
                         </div>
@@ -217,9 +246,41 @@ export function TenantList() {
                       <span className="block text-xs text-muted-foreground">RM {tenant.lastPaymentAmount}</span>
                     )}
                   </TableCell>
-                  <TableCell>{getStatusBadge(tenant)}</TableCell>
+                  <TableCell>{getPaymentStatusBadge(tenant)}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className={cn(
+                      "capitalize",
+                      tenant.status === 'active' ? "bg-green-50 text-green-700 border-green-200" : 
+                      tenant.status === 'pending' ? "bg-orange-50 text-orange-700 border-orange-200" :
+                      "bg-gray-100 text-gray-500"
+                    )}>
+                      {tenant.status}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                       {/* Approve / Deactivate Actions */}
+                       {tenant.status === 'pending' || tenant.status === 'inactive' ? (
+                          <Button 
+                            size="sm" 
+                            className="bg-brand-green hover:bg-brand-green/90 h-8 text-xs"
+                            onClick={() => handleStatusChange(tenant.id, 'active')}
+                            disabled={isUpdating}
+                          >
+                            Aktifkan
+                          </Button>
+                       ) : (
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            className="h-8 text-xs bg-red-100 text-red-700 hover:bg-red-200 border-none shadow-none"
+                            onClick={() => handleStatusChange(tenant.id, 'inactive')}
+                            disabled={isUpdating}
+                          >
+                            Padam
+                          </Button>
+                       )}
+
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button
@@ -253,7 +314,12 @@ export function TenantList() {
                                    )}
                                  </div>
                                  <div className="flex-1">
-                                    <h3 className="text-xl font-bold text-foreground">{selectedTenant.full_name}</h3>
+                                    <div className="flex items-center gap-2">
+                                       <h3 className="text-xl font-bold text-foreground">{selectedTenant.full_name}</h3>
+                                       <Badge className={selectedTenant.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
+                                          {selectedTenant.status}
+                                       </Badge>
+                                    </div>
                                     <p className="text-muted-foreground flex items-center gap-1.5 text-sm mt-1">
                                        <Building size={14} /> {selectedTenant.business_name || "Tiada Nama Perniagaan"}
                                     </p>
@@ -298,7 +364,7 @@ export function TenantList() {
                               </div>
 
                               {/* Status Alert */}
-                              {selectedTenant.computedStatus === 'overdue' ? (
+                              {selectedTenant.paymentStatus === 'overdue' ? (
                                 <div className="bg-red-50 border border-red-100 p-3 rounded-lg flex gap-3 items-center">
                                   <AlertCircle className="text-red-600 h-5 w-5" />
                                   <div>
