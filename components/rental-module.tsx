@@ -146,12 +146,25 @@ export function RentalModule() {
   }, [user, supabase, searchParams])
 
   const fetchHistory = async (tenantId: number) => {
-    const { data: histData } = await supabase
-      .from('tenant_payments')
+    // UPDATED: Fetch from 'transactions' table to include all records (including seeded data)
+    // tenant_payments is only for specific payment flow, transactions is the master ledger
+    const { data: txData } = await supabase
+      .from('transactions')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('payment_date', { ascending: false })
-    if (histData) setHistory(histData)
+      .order('date', { ascending: false })
+      
+    if (txData) {
+        // Map transaction data to the history structure used in UI
+        const mappedHistory = txData.map(tx => ({
+            id: tx.id,
+            payment_date: tx.date,
+            remarks: tx.description,
+            amount: tx.amount,
+            status: tx.status
+        }))
+        setHistory(mappedHistory)
+    }
   }
 
   const verifyBillplzPayment = async (billId: string, tenantId: number) => {
@@ -303,6 +316,7 @@ export function RentalModule() {
          toast.success("Bayaran direkodkan!")
          setIsProcessing(false)
          setActiveTab("history")
+         await fetchHistory(tenant.id)
       }
     } catch (err: any) {
       toast.error(err.message)
@@ -521,10 +535,23 @@ export function RentalModule() {
                  <TableBody>
                     {history.map((pay) => (
                        <TableRow key={pay.id}>
-                          <TableCell className="pl-6 font-mono text-xs text-muted-foreground">{pay.payment_date}</TableCell>
+                          <TableCell className="pl-6 font-mono text-xs text-muted-foreground">
+                            {new Date(pay.payment_date).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </TableCell>
                           <TableCell>{pay.remarks || "Bayaran Sewa"}</TableCell>
                           <TableCell className="text-right font-bold text-brand-green">RM {Number(pay.amount).toFixed(2)}</TableCell>
-                          <TableCell className="text-center"><Badge variant="outline">{pay.status}</Badge></TableCell>
+                          <TableCell className="text-center">
+                            <Badge 
+                              variant="outline"
+                              className={cn(
+                                pay.status === "approved"
+                                  ? "bg-brand-green/10 text-brand-green border-brand-green/20"
+                                  : "bg-orange-50 text-orange-600 border-orange-100",
+                              )}
+                            >
+                              {pay.status === 'approved' ? 'Berjaya' : 'Menunggu'}
+                            </Badge>
+                          </TableCell>
                        </TableRow>
                     ))}
                     {history.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-6">Tiada rekod.</TableCell></TableRow>}
