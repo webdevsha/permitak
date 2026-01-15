@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
-import { Loader2, Upload, FileText, Check, Database, Download, Trash2, RefreshCw, Shield, HardDrive } from "lucide-react"
+import { Loader2, Upload, FileText, Check, Database, Download, Trash2, RefreshCw, Shield, HardDrive, Pencil, X } from "lucide-react"
 import Image from "next/image"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -21,6 +21,9 @@ export function SettingsModule() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tenantId, setTenantId] = useState<number | null>(null)
+  
+  // UI State
+  const [isEditing, setIsEditing] = useState(false)
   
   // Profile State
   const [formData, setFormData] = useState({
@@ -195,6 +198,7 @@ export function SettingsModule() {
       
       setUrls(newUrls)
       setFiles({}) // Reset file inputs
+      setIsEditing(false) // Switch back to read-only
       toast.success("Profil berjaya dikemaskini")
       
     } catch (err: any) {
@@ -203,6 +207,24 @@ export function SettingsModule() {
       setSaving(false)
     }
   }
+
+  const DataField = ({ label, value, field, placeholder }: any) => (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {isEditing ? (
+        <Input 
+          value={value}
+          onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+          className="border-border bg-white" 
+          placeholder={placeholder}
+        />
+      ) : (
+        <div className="p-3 bg-secondary/10 rounded-xl border border-transparent font-medium min-h-[2.75rem] flex items-center text-sm">
+          {value || <span className="text-muted-foreground italic text-xs">Belum ditetapkan</span>}
+        </div>
+      )}
+    </div>
+  )
 
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
@@ -226,6 +248,29 @@ export function SettingsModule() {
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
+          <div className="flex justify-between items-center max-w-5xl">
+             <h3 className="text-xl font-bold">Maklumat Akaun</h3>
+             {!isEditing ? (
+               <Button onClick={() => setIsEditing(true)} className="rounded-xl shadow-sm">
+                 <Pencil className="w-4 h-4 mr-2" /> Edit Profil
+               </Button>
+             ) : (
+               <div className="flex gap-2">
+                 <Button variant="outline" onClick={() => setIsEditing(false)} className="rounded-xl">
+                   <X className="w-4 h-4 mr-2" /> Batal
+                 </Button>
+                 <Button 
+                   onClick={handleSaveProfile} 
+                   disabled={saving}
+                   className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
+                 >
+                   {saving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2 h-4 w-4" />}
+                   Simpan
+                 </Button>
+               </div>
+             )}
+          </div>
+
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-5xl">
             
             {/* Main Info */}
@@ -234,64 +279,20 @@ export function SettingsModule() {
                 <CardTitle className="text-primary font-serif">Maklumat Perniagaan</CardTitle>
                 <CardDescription>Butiran rasmi untuk rekod sewaan</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nama Penuh (Seperti IC)</Label>
-                    <Input 
-                        value={formData.fullName}
-                        onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                        className="border-border bg-secondary/10" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>No. Kad Pengenalan</Label>
-                    <Input 
-                        value={formData.icNumber}
-                        onChange={(e) => setFormData({...formData, icNumber: e.target.value})}
-                        placeholder="Contoh: 880101-14-1234"
-                        className="border-border bg-secondary/10" 
-                    />
-                  </div>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <DataField label="Nama Penuh (Seperti IC)" value={formData.fullName} field="fullName" />
+                  <DataField label="No. Kad Pengenalan" value={formData.icNumber} field="icNumber" placeholder="Contoh: 880101-14-1234" />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Nama Perniagaan / Syarikat</Label>
-                    <Input 
-                        value={formData.businessName}
-                        onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-                        className="border-border bg-secondary/10" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>No. Pendaftaran SSM</Label>
-                    <Input 
-                        value={formData.ssmNumber}
-                        onChange={(e) => setFormData({...formData, ssmNumber: e.target.value})}
-                        placeholder="Contoh: 202401001234"
-                        className="border-border bg-secondary/10" 
-                    />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <DataField label="Nama Perniagaan / Syarikat" value={formData.businessName} field="businessName" />
+                  <DataField label="No. Pendaftaran SSM" value={formData.ssmNumber} field="ssmNumber" placeholder="Contoh: 202401001234" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>No. Telefon</Label>
-                    <Input 
-                        value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                        className="border-border bg-secondary/10" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Alamat Surat Menyurat</Label>
-                    <Input 
-                        value={formData.address}
-                        onChange={(e) => setFormData({...formData, address: e.target.value})}
-                        className="border-border bg-secondary/10" 
-                    />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <DataField label="No. Telefon" value={formData.phone} field="phone" />
+                  <DataField label="Alamat Surat Menyurat" value={formData.address} field="address" />
                 </div>
               </CardContent>
             </Card>
@@ -305,7 +306,7 @@ export function SettingsModule() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col items-center gap-4">
-                    <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-border bg-secondary/30 flex items-center justify-center group cursor-pointer">
+                    <div className={`relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-border bg-secondary/30 flex items-center justify-center group ${isEditing ? 'cursor-pointer hover:bg-secondary/50' : ''}`}>
                         {files.profile ? (
                           <Image src={URL.createObjectURL(files.profile)} alt="Preview" fill className="object-cover" />
                         ) : urls.profile ? (
@@ -313,14 +314,21 @@ export function SettingsModule() {
                         ) : (
                           <Upload className="text-muted-foreground" />
                         )}
-                        <input 
-                          type="file" 
-                          accept="image/*"
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                          onChange={(e) => e.target.files && setFiles({...files, profile: e.target.files[0]})}
-                        />
+                        {isEditing && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <Pencil className="text-white w-6 h-6" />
+                          </div>
+                        )}
+                        {isEditing && (
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={(e) => e.target.files && setFiles({...files, profile: e.target.files[0]})}
+                          />
+                        )}
                     </div>
-                    <p className="text-xs text-muted-foreground text-center">Klik untuk muat naik gambar berukuran pasport</p>
+                    {isEditing && <p className="text-xs text-muted-foreground text-center">Klik untuk tukar gambar</p>}
                   </div>
                 </CardContent>
               </Card>
@@ -333,13 +341,20 @@ export function SettingsModule() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-xs">Sijil SSM (PDF/Gambar)</Label>
-                    <div className="flex gap-2">
-                        <Input 
-                          type="file"
-                          accept=".pdf,image/*"
-                          onChange={(e) => e.target.files && setFiles({...files, ssm: e.target.files[0]})}
-                          className="text-xs h-9"
-                        />
+                    <div className="flex gap-2 items-center">
+                        {isEditing ? (
+                           <Input 
+                            type="file"
+                            accept=".pdf,image/*"
+                            onChange={(e) => e.target.files && setFiles({...files, ssm: e.target.files[0]})}
+                            className="text-xs h-9"
+                          />
+                        ) : (
+                          <div className="flex-1 p-2 bg-secondary/10 rounded-lg text-xs italic text-muted-foreground border">
+                             {urls.ssm ? "Fail dimuat naik" : "Tiada fail"}
+                          </div>
+                        )}
+                        
                         {urls.ssm && (
                           <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => window.open(urls.ssm, '_blank')}>
                               <FileText size={14} />
@@ -348,14 +363,21 @@ export function SettingsModule() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs">Salinan Kad Pengenalan (Depan/Belakang)</Label>
-                    <div className="flex gap-2">
-                        <Input 
-                          type="file"
-                          accept=".pdf,image/*"
-                          onChange={(e) => e.target.files && setFiles({...files, ic: e.target.files[0]})}
-                          className="text-xs h-9"
-                        />
+                    <Label className="text-xs">Salinan Kad Pengenalan</Label>
+                    <div className="flex gap-2 items-center">
+                        {isEditing ? (
+                          <Input 
+                            type="file"
+                            accept=".pdf,image/*"
+                            onChange={(e) => e.target.files && setFiles({...files, ic: e.target.files[0]})}
+                            className="text-xs h-9"
+                          />
+                        ) : (
+                          <div className="flex-1 p-2 bg-secondary/10 rounded-lg text-xs italic text-muted-foreground border">
+                             {urls.ic ? "Fail dimuat naik" : "Tiada fail"}
+                          </div>
+                        )}
+                        
                         {urls.ic && (
                           <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => window.open(urls.ic, '_blank')}>
                               <FileText size={14} />
@@ -366,17 +388,6 @@ export function SettingsModule() {
                 </CardContent>
               </Card>
             </div>
-          </div>
-
-          <div className="flex justify-end pt-4 pb-12 max-w-5xl">
-            <Button 
-              onClick={handleSaveProfile} 
-              disabled={saving}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl px-8 h-12 text-md font-bold shadow-lg shadow-primary/20"
-            >
-              {saving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2 h-5 w-5" />}
-              Simpan Semua Perubahan
-            </Button>
           </div>
         </TabsContent>
 
