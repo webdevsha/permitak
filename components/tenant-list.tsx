@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
+import { Switch } from "@/components/ui/switch"
 import { MessageSquare, Eye, Phone, Loader2, AlertCircle, Calendar, FileText, Download, Building, MapPin, CheckCircle, XCircle } from "lucide-react"
 import {
   Dialog,
@@ -111,7 +112,7 @@ export function TenantList() {
   const [selectedTenant, setSelectedTenant] = useState<any>(null)
   const [tenantTransactions, setTenantTransactions] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-  const [isUpdating, setIsUpdating] = useState(false)
+  const [processingId, setProcessingId] = useState<number | null>(null)
   const supabase = createClient()
 
   const handleViewTenant = async (tenant: any) => {
@@ -129,8 +130,10 @@ export function TenantList() {
     setLoadingHistory(false)
   }
 
-  const handleStatusChange = async (tenantId: number, newStatus: string) => {
-    setIsUpdating(true)
+  const handleStatusToggle = async (tenantId: number, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
+    setProcessingId(tenantId)
+    
     try {
       const { error } = await supabase
         .from('tenants')
@@ -139,12 +142,12 @@ export function TenantList() {
 
       if (error) throw error
       
-      toast.success(`Status peniaga berjaya dikemaskini ke ${newStatus}`)
+      toast.success(newStatus === 'active' ? "Peniaga diaktifkan" : "Peniaga dinyahaktifkan")
       mutate() // Refresh list
     } catch (err: any) {
       toast.error("Gagal mengemaskini status: " + err.message)
     } finally {
-      setIsUpdating(false)
+      setProcessingId(null)
     }
   }
 
@@ -216,11 +219,11 @@ export function TenantList() {
                        )}
                        <div>
                         <div className={cn(
-                          "font-medium transition-colors",
+                          "font-medium transition-colors flex items-center gap-1.5",
                           tenant.status === 'active' ? "text-brand-green font-bold" : "text-foreground"
                         )}>
                           {tenant.full_name}
-                          {tenant.status === 'active' && <CheckCircle className="inline-block w-3 h-3 ml-1" />}
+                          {tenant.status === 'active' && <CheckCircle className="w-3.5 h-3.5 fill-brand-green text-white" />}
                         </div>
                         <div className="text-xs text-muted-foreground font-mono">
                           {tenant.business_name || "Tiada Nama Bisnes"}
@@ -249,7 +252,7 @@ export function TenantList() {
                   <TableCell>{getPaymentStatusBadge(tenant)}</TableCell>
                   <TableCell className="text-center">
                     <Badge variant="outline" className={cn(
-                      "capitalize",
+                      "capitalize transition-colors",
                       tenant.status === 'active' ? "bg-green-50 text-green-700 border-green-200" : 
                       tenant.status === 'pending' ? "bg-orange-50 text-orange-700 border-orange-200" :
                       "bg-gray-100 text-gray-500"
@@ -258,28 +261,18 @@ export function TenantList() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                       {/* Approve / Deactivate Actions */}
-                       {tenant.status === 'pending' || tenant.status === 'inactive' ? (
-                          <Button 
-                            size="sm" 
-                            className="bg-brand-green hover:bg-brand-green/90 h-8 text-xs"
-                            onClick={() => handleStatusChange(tenant.id, 'active')}
-                            disabled={isUpdating}
-                          >
-                            Aktifkan
-                          </Button>
-                       ) : (
-                          <Button 
-                            size="sm" 
-                            variant="destructive"
-                            className="h-8 text-xs bg-red-100 text-red-700 hover:bg-red-200 border-none shadow-none"
-                            onClick={() => handleStatusChange(tenant.id, 'inactive')}
-                            disabled={isUpdating}
-                          >
-                            Padam
-                          </Button>
-                       )}
+                    <div className="flex justify-end gap-3 items-center">
+                       {/* Toggle Switch */}
+                       <div className="flex items-center gap-2" title={tenant.status === 'active' ? "Nyahaktifkan" : "Aktifkan"}>
+                          <Switch 
+                            checked={tenant.status === 'active'}
+                            onCheckedChange={() => handleStatusToggle(tenant.id, tenant.status)}
+                            disabled={processingId === tenant.id}
+                          />
+                          <span className="text-[10px] text-muted-foreground w-12 text-left">
+                             {tenant.status === 'active' ? 'Aktif' : 'Pasif'}
+                          </span>
+                       </div>
 
                       <Dialog>
                         <DialogTrigger asChild>

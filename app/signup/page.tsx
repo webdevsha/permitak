@@ -41,14 +41,19 @@ export default function SignupPage() {
     setLoading(true)
     
     try {
-      // 1. Sign Up
+      // 1. Sign Up with Metadata
+      // This triggers the database function to create Profile AND Tenant records simultaneously
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
             full_name: formData.fullName,
-            role: 'tenant' // Default role
+            business_name: formData.businessName,
+            phone_number: formData.phone,
+            ssm_number: formData.ssmNumber,
+            ic_number: formData.icNumber,
+            role: 'tenant'
           }
         }
       })
@@ -60,7 +65,7 @@ export default function SignupPage() {
         let ssmUrl = ""
         let icUrl = ""
 
-        // 2. Upload Documents
+        // 2. Upload Documents (if any)
         if (files.ssm) {
            const fileName = `ssm-${userId}-${Date.now()}.pdf`
            const { error: uploadError } = await supabase.storage
@@ -85,24 +90,21 @@ export default function SignupPage() {
            }
         }
 
-        // 3. Create Tenant Record (Status Pending)
-        const { error: tenantError } = await supabase
-          .from('tenants')
-          .insert({
-            profile_id: userId,
-            email: formData.email,
-            full_name: formData.fullName,
-            business_name: formData.businessName,
-            phone_number: formData.phone,
-            ssm_number: formData.ssmNumber,
-            ic_number: formData.icNumber,
-            ssm_file_url: ssmUrl,
-            ic_file_url: icUrl,
-            status: 'pending' // Require Admin Approval
-          })
+        // 3. Update Tenant Record with File URLs
+        // The record already exists thanks to the trigger, we just update it
+        if (ssmUrl || icUrl) {
+           const { error: updateError } = await supabase
+             .from('tenants')
+             .update({
+               ssm_file_url: ssmUrl || null,
+               ic_file_url: icUrl || null
+             })
+             .eq('profile_id', userId)
 
-        if (tenantError) {
-          console.error("Tenant creation error:", tenantError)
+           if (updateError) {
+             console.error("Error updating file URLs:", updateError)
+             // Non-critical, user is still created
+           }
         }
 
         toast.success("Pendaftaran berjaya! Akaun anda sedang menunggu pengesahan admin.")
