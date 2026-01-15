@@ -8,17 +8,21 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
-import { Loader2, Upload, FileText, Check } from "lucide-react"
+import { Loader2, Upload, FileText, Check, Database, Download, Trash2, RefreshCw, Shield, HardDrive } from "lucide-react"
 import Image from "next/image"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 export function SettingsModule() {
-  const { user } = useAuth()
+  const { user, role } = useAuth()
   const supabase = createClient()
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [tenantId, setTenantId] = useState<number | null>(null)
   
+  // Profile State
   const [formData, setFormData] = useState({
     fullName: "",
     businessName: "",
@@ -39,6 +43,11 @@ export function SettingsModule() {
     ssm: "",
     ic: ""
   })
+
+  // Backup State
+  const [backups, setBackups] = useState<any[]>([])
+  const [loadingBackups, setLoadingBackups] = useState(false)
+  const [creatingBackup, setCreatingBackup] = useState(false)
 
   useEffect(() => {
     async function fetchProfile() {
@@ -70,7 +79,72 @@ export function SettingsModule() {
     }
     
     fetchProfile()
-  }, [user, supabase])
+    if (role === 'admin') {
+      fetchBackups()
+    }
+  }, [user, supabase, role])
+
+  const fetchBackups = async () => {
+    setLoadingBackups(true)
+    const { data, error } = await supabase.storage.from('backups').list('', {
+      limit: 100,
+      offset: 0,
+      sortBy: { column: 'created_at', order: 'desc' },
+    })
+    
+    if (!error && data) {
+      setBackups(data)
+    }
+    setLoadingBackups(false)
+  }
+
+  const handleCreateBackup = async () => {
+    setCreatingBackup(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('system-backup')
+      if (error) throw new Error(error.message)
+      if (data?.error) throw new Error(data.error)
+      
+      toast.success("Backup berjaya dicipta!")
+      fetchBackups()
+    } catch (e: any) {
+      toast.error("Gagal backup: " + e.message)
+    } finally {
+      setCreatingBackup(false)
+    }
+  }
+
+  const handleDownloadBackup = async (fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage.from('backups').download(fileName)
+      if (error) throw error
+      
+      const url = URL.createObjectURL(data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      toast.error("Gagal muat turun: " + e.message)
+    }
+  }
+
+  const handleDeleteBackup = async (fileName: string) => {
+    if (!confirm("Adakah anda pasti mahu memadam backup ini?")) return
+    
+    try {
+      const { error } = await supabase.storage.from('backups').remove([fileName])
+      if (error) throw error
+      
+      toast.success("Backup dipadam")
+      setBackups(prev => prev.filter(b => b.name !== fileName))
+    } catch (e: any) {
+      toast.error("Gagal padam: " + e.message)
+    }
+  }
 
   const handleFileUpload = async (file: File, prefix: string) => {
     const fileExt = file.name.split('.').pop()
@@ -89,7 +163,7 @@ export function SettingsModule() {
     return publicUrl
   }
 
-  const handleSave = async () => {
+  const handleSaveProfile = async () => {
     setSaving(true)
     try {
       let newUrls = { ...urls }
@@ -130,168 +204,255 @@ export function SettingsModule() {
     }
   }
 
-  if (loading) return <div className="p-8"><Loader2 className="animate-spin" /></div>
+  if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div>
-        <h2 className="text-3xl font-serif font-bold text-foreground leading-tight">Tetapan & Profil</h2>
-        <p className="text-muted-foreground text-lg">Lengkapkan maklumat perniagaan anda</p>
+        <h2 className="text-3xl font-serif font-bold text-foreground leading-tight">Tetapan</h2>
+        <p className="text-muted-foreground text-lg">Urus profil dan konfigurasi sistem</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-5xl">
-        
-        {/* Main Info */}
-        <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-primary font-serif">Maklumat Perniagaan</CardTitle>
-            <CardDescription>Butiran rasmi untuk rekod sewaan</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label>Nama Penuh (Seperti IC)</Label>
-                 <Input 
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                    className="border-border bg-secondary/10" 
-                 />
-               </div>
-               <div className="space-y-2">
-                 <Label>No. Kad Pengenalan</Label>
-                 <Input 
-                    value={formData.icNumber}
-                    onChange={(e) => setFormData({...formData, icNumber: e.target.value})}
-                    placeholder="Contoh: 880101-14-1234"
-                    className="border-border bg-secondary/10" 
-                 />
-               </div>
-            </div>
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="bg-white border border-border/50 p-1 rounded-xl mb-6">
+          <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Shield className="w-4 h-4 mr-2" /> Profil Saya
+          </TabsTrigger>
+          {role === 'admin' && (
+            <TabsTrigger value="backup" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
+              <Database className="w-4 h-4 mr-2" /> Backup & Sistem
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="profile" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-5xl">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label>Nama Perniagaan / Syarikat</Label>
-                 <Input 
-                    value={formData.businessName}
-                    onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-                    className="border-border bg-secondary/10" 
-                 />
-               </div>
-               <div className="space-y-2">
-                 <Label>No. Pendaftaran SSM</Label>
-                 <Input 
-                    value={formData.ssmNumber}
-                    onChange={(e) => setFormData({...formData, ssmNumber: e.target.value})}
-                    placeholder="Contoh: 202401001234"
-                    className="border-border bg-secondary/10" 
-                 />
-               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label>No. Telefon</Label>
-                 <Input 
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="border-border bg-secondary/10" 
-                 />
-               </div>
-               <div className="space-y-2">
-                 <Label>Alamat Surat Menyurat</Label>
-                 <Input 
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    className="border-border bg-secondary/10" 
-                 />
-               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Documents & Photo */}
-        <div className="space-y-6">
-           {/* Profile Photo */}
-           <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
-             <CardHeader className="pb-2">
-               <CardTitle className="text-primary font-serif text-lg">Gambar Profil</CardTitle>
-             </CardHeader>
-             <CardContent>
-               <div className="flex flex-col items-center gap-4">
-                 <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-border bg-secondary/30 flex items-center justify-center group cursor-pointer">
-                    {files.profile ? (
-                       <Image src={URL.createObjectURL(files.profile)} alt="Preview" fill className="object-cover" />
-                    ) : urls.profile ? (
-                       <Image src={urls.profile} alt="Current" fill className="object-cover" />
-                    ) : (
-                       <Upload className="text-muted-foreground" />
-                    )}
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={(e) => e.target.files && setFiles({...files, profile: e.target.files[0]})}
-                    />
-                 </div>
-                 <p className="text-xs text-muted-foreground text-center">Klik untuk muat naik gambar berukuran pasport</p>
-               </div>
-             </CardContent>
-           </Card>
-
-           {/* Documents */}
-           <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
-             <CardHeader className="pb-2">
-               <CardTitle className="text-primary font-serif text-lg">Dokumen Sokongan</CardTitle>
-             </CardHeader>
-             <CardContent className="space-y-4">
-               <div className="space-y-2">
-                 <Label className="text-xs">Sijil SSM (PDF/Gambar)</Label>
-                 <div className="flex gap-2">
+            {/* Main Info */}
+            <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-primary font-serif">Maklumat Perniagaan</CardTitle>
+                <CardDescription>Butiran rasmi untuk rekod sewaan</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nama Penuh (Seperti IC)</Label>
                     <Input 
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={(e) => e.target.files && setFiles({...files, ssm: e.target.files[0]})}
-                      className="text-xs h-9"
+                        value={formData.fullName}
+                        onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                        className="border-border bg-secondary/10" 
                     />
-                    {urls.ssm && (
-                       <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => window.open(urls.ssm, '_blank')}>
-                          <FileText size={14} />
-                       </Button>
-                    )}
-                 </div>
-               </div>
-               <div className="space-y-2">
-                 <Label className="text-xs">Salinan Kad Pengenalan (Depan/Belakang)</Label>
-                 <div className="flex gap-2">
+                  </div>
+                  <div className="space-y-2">
+                    <Label>No. Kad Pengenalan</Label>
                     <Input 
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={(e) => e.target.files && setFiles({...files, ic: e.target.files[0]})}
-                      className="text-xs h-9"
+                        value={formData.icNumber}
+                        onChange={(e) => setFormData({...formData, icNumber: e.target.value})}
+                        placeholder="Contoh: 880101-14-1234"
+                        className="border-border bg-secondary/10" 
                     />
-                    {urls.ic && (
-                       <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => window.open(urls.ic, '_blank')}>
-                          <FileText size={14} />
-                       </Button>
-                    )}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nama Perniagaan / Syarikat</Label>
+                    <Input 
+                        value={formData.businessName}
+                        onChange={(e) => setFormData({...formData, businessName: e.target.value})}
+                        className="border-border bg-secondary/10" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>No. Pendaftaran SSM</Label>
+                    <Input 
+                        value={formData.ssmNumber}
+                        onChange={(e) => setFormData({...formData, ssmNumber: e.target.value})}
+                        placeholder="Contoh: 202401001234"
+                        className="border-border bg-secondary/10" 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>No. Telefon</Label>
+                    <Input 
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        className="border-border bg-secondary/10" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Alamat Surat Menyurat</Label>
+                    <Input 
+                        value={formData.address}
+                        onChange={(e) => setFormData({...formData, address: e.target.value})}
+                        className="border-border bg-secondary/10" 
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Documents & Photo */}
+            <div className="space-y-6">
+              {/* Profile Photo */}
+              <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-primary font-serif text-lg">Gambar Profil</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-border bg-secondary/30 flex items-center justify-center group cursor-pointer">
+                        {files.profile ? (
+                          <Image src={URL.createObjectURL(files.profile)} alt="Preview" fill className="object-cover" />
+                        ) : urls.profile ? (
+                          <Image src={urls.profile} alt="Current" fill className="object-cover" />
+                        ) : (
+                          <Upload className="text-muted-foreground" />
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onChange={(e) => e.target.files && setFiles({...files, profile: e.target.files[0]})}
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">Klik untuk muat naik gambar berukuran pasport</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Documents */}
+              <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-primary font-serif text-lg">Dokumen Sokongan</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Sijil SSM (PDF/Gambar)</Label>
+                    <div className="flex gap-2">
+                        <Input 
+                          type="file"
+                          accept=".pdf,image/*"
+                          onChange={(e) => e.target.files && setFiles({...files, ssm: e.target.files[0]})}
+                          className="text-xs h-9"
+                        />
+                        {urls.ssm && (
+                          <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => window.open(urls.ssm, '_blank')}>
+                              <FileText size={14} />
+                          </Button>
+                        )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Salinan Kad Pengenalan (Depan/Belakang)</Label>
+                    <div className="flex gap-2">
+                        <Input 
+                          type="file"
+                          accept=".pdf,image/*"
+                          onChange={(e) => e.target.files && setFiles({...files, ic: e.target.files[0]})}
+                          className="text-xs h-9"
+                        />
+                        {urls.ic && (
+                          <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => window.open(urls.ic, '_blank')}>
+                              <FileText size={14} />
+                          </Button>
+                        )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 pb-12 max-w-5xl">
+            <Button 
+              onClick={handleSaveProfile} 
+              disabled={saving}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl px-8 h-12 text-md font-bold shadow-lg shadow-primary/20"
+            >
+              {saving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2 h-5 w-5" />}
+              Simpan Semua Perubahan
+            </Button>
+          </div>
+        </TabsContent>
+
+        {role === 'admin' && (
+          <TabsContent value="backup" className="space-y-6">
+             <Card className="bg-white border-border/50 shadow-sm rounded-[1.5rem] overflow-hidden">
+               <CardHeader className="bg-secondary/10 border-b border-border/30">
+                 <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="font-serif text-2xl flex items-center gap-2">
+                        <HardDrive className="text-primary w-6 h-6" /> Pangkalan Data Backup
+                      </CardTitle>
+                      <CardDescription>Urus salinan backup database sistem</CardDescription>
+                    </div>
+                    <Button 
+                      onClick={handleCreateBackup} 
+                      disabled={creatingBackup}
+                      className="rounded-xl shadow-md"
+                    >
+                      {creatingBackup ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Create Backup Now
+                    </Button>
                  </div>
-               </div>
-             </CardContent>
-           </Card>
-        </div>
-
-      </div>
-
-      <div className="flex justify-end pt-4 pb-12 max-w-5xl">
-        <Button 
-          onClick={handleSave} 
-          disabled={saving}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl px-8 h-12 text-md font-bold shadow-lg shadow-primary/20"
-        >
-          {saving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2 h-5 w-5" />}
-          Simpan Semua Perubahan
-        </Button>
-      </div>
+               </CardHeader>
+               <CardContent className="p-0">
+                 {loadingBackups ? (
+                   <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>
+                 ) : (
+                   <Table>
+                     <TableHeader className="bg-secondary/20">
+                       <TableRow>
+                         <TableHead className="pl-6">File Name</TableHead>
+                         <TableHead>Size</TableHead>
+                         <TableHead>Created At</TableHead>
+                         <TableHead className="text-right pr-6">Actions</TableHead>
+                       </TableRow>
+                     </TableHeader>
+                     <TableBody>
+                       {backups.length > 0 ? backups.map((file) => (
+                         <TableRow key={file.id}>
+                           <TableCell className="pl-6 font-medium flex items-center gap-2">
+                             <FileText className="w-4 h-4 text-primary" />
+                             {file.name}
+                           </TableCell>
+                           <TableCell className="font-mono text-xs text-muted-foreground">
+                             {(file.metadata?.size / 1024).toFixed(2)} KB
+                           </TableCell>
+                           <TableCell className="text-xs text-muted-foreground">
+                             {new Date(file.created_at).toLocaleString('ms-MY')}
+                           </TableCell>
+                           <TableCell className="text-right pr-6">
+                             <div className="flex justify-end gap-2">
+                               <Button variant="outline" size="sm" onClick={() => handleDownloadBackup(file.name)}>
+                                 <Download className="w-4 h-4" />
+                               </Button>
+                               <Button variant="destructive" size="sm" onClick={() => handleDeleteBackup(file.name)}>
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </div>
+                           </TableCell>
+                         </TableRow>
+                       )) : (
+                         <TableRow>
+                           <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                             Tiada backup dijumpai. Sila cipta backup baru.
+                           </TableCell>
+                         </TableRow>
+                       )}
+                     </TableBody>
+                   </Table>
+                 )}
+               </CardContent>
+             </Card>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   )
 }
