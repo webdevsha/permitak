@@ -12,7 +12,39 @@ import { Loader2, Upload, FileText, Check, Database, Download, Trash2, RefreshCw
 import Image from "next/image"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+
+// Helper component defined outside to prevent re-renders causing focus loss
+const DataField = ({ 
+  label, 
+  value, 
+  field, 
+  placeholder, 
+  isEditing, 
+  onChange 
+}: { 
+  label: string, 
+  value: string, 
+  field: string, 
+  placeholder?: string, 
+  isEditing: boolean, 
+  onChange: (field: string, val: string) => void 
+}) => (
+  <div className="space-y-2">
+    <Label>{label}</Label>
+    {isEditing ? (
+      <Input 
+        value={value}
+        onChange={(e) => onChange(field, e.target.value)}
+        className="border-border bg-white" 
+        placeholder={placeholder}
+      />
+    ) : (
+      <div className="p-3 bg-secondary/10 rounded-xl border border-transparent font-medium min-h-[2.75rem] flex items-center text-sm">
+        {value || <span className="text-muted-foreground italic text-xs">Belum ditetapkan</span>}
+      </div>
+    )}
+  </div>
+)
 
 export function SettingsModule() {
   const { user, role } = useAuth()
@@ -167,6 +199,11 @@ export function SettingsModule() {
   }
 
   const handleSaveProfile = async () => {
+    if (!tenantId) {
+      toast.error("Ralat: Rekod pengguna tidak dijumpai")
+      return
+    }
+
     setSaving(true)
     try {
       let newUrls = { ...urls }
@@ -176,17 +213,18 @@ export function SettingsModule() {
       if (files.ssm) newUrls.ssm = await handleFileUpload(files.ssm, 'ssm')
       if (files.ic) newUrls.ic = await handleFileUpload(files.ic, 'ic')
       
-      // Update Database
+      // Prepare Update Data
+      // IMPORTANT: Send null instead of empty string for optional fields to satisfy DB types
       const updateData = {
         full_name: formData.fullName,
-        business_name: formData.businessName,
-        phone_number: formData.phone,
-        ssm_number: formData.ssmNumber,
-        ic_number: formData.icNumber,
-        address: formData.address,
-        profile_image_url: newUrls.profile,
-        ssm_file_url: newUrls.ssm,
-        ic_file_url: newUrls.ic
+        business_name: formData.businessName || null,
+        phone_number: formData.phone || null,
+        ssm_number: formData.ssmNumber || null,
+        ic_number: formData.icNumber || null,
+        address: formData.address || null,
+        profile_image_url: newUrls.profile || null,
+        ssm_file_url: newUrls.ssm || null,
+        ic_file_url: newUrls.ic || null
       }
       
       const { error } = await supabase
@@ -202,29 +240,17 @@ export function SettingsModule() {
       toast.success("Profil berjaya dikemaskini")
       
     } catch (err: any) {
+      console.error(err)
       toast.error("Gagal menyimpan: " + err.message)
     } finally {
       setSaving(false)
     }
   }
 
-  const DataField = ({ label, value, field, placeholder }: any) => (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      {isEditing ? (
-        <Input 
-          value={value}
-          onChange={(e) => setFormData({...formData, [field]: e.target.value})}
-          className="border-border bg-white" 
-          placeholder={placeholder}
-        />
-      ) : (
-        <div className="p-3 bg-secondary/10 rounded-xl border border-transparent font-medium min-h-[2.75rem] flex items-center text-sm">
-          {value || <span className="text-muted-foreground italic text-xs">Belum ditetapkan</span>}
-        </div>
-      )}
-    </div>
-  )
+  // Handle Input Change for DataField
+  const handleInputChange = (field: string, val: string) => {
+    setFormData(prev => ({ ...prev, [field]: val }))
+  }
 
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
@@ -281,18 +307,18 @@ export function SettingsModule() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <DataField label="Nama Penuh (Seperti IC)" value={formData.fullName} field="fullName" />
-                  <DataField label="No. Kad Pengenalan" value={formData.icNumber} field="icNumber" placeholder="Contoh: 880101-14-1234" />
+                  <DataField label="Nama Penuh (Seperti IC)" value={formData.fullName} field="fullName" isEditing={isEditing} onChange={handleInputChange} />
+                  <DataField label="No. Kad Pengenalan" value={formData.icNumber} field="icNumber" placeholder="Contoh: 880101-14-1234" isEditing={isEditing} onChange={handleInputChange} />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <DataField label="Nama Perniagaan / Syarikat" value={formData.businessName} field="businessName" />
-                  <DataField label="No. Pendaftaran SSM" value={formData.ssmNumber} field="ssmNumber" placeholder="Contoh: 202401001234" />
+                  <DataField label="Nama Perniagaan / Syarikat" value={formData.businessName} field="businessName" isEditing={isEditing} onChange={handleInputChange} />
+                  <DataField label="No. Pendaftaran SSM" value={formData.ssmNumber} field="ssmNumber" placeholder="Contoh: 202401001234" isEditing={isEditing} onChange={handleInputChange} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <DataField label="No. Telefon" value={formData.phone} field="phone" />
-                  <DataField label="Alamat Surat Menyurat" value={formData.address} field="address" />
+                  <DataField label="No. Telefon" value={formData.phone} field="phone" isEditing={isEditing} onChange={handleInputChange} />
+                  <DataField label="Alamat Surat Menyurat" value={formData.address} field="address" isEditing={isEditing} onChange={handleInputChange} />
                 </div>
               </CardContent>
             </Card>
