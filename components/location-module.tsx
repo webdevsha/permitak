@@ -9,6 +9,7 @@ import { Calendar, Plus, MapPin, Loader2, Eye, Users, Store } from "lucide-react
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import useSWR from "swr"
 import { createClient } from "@/utils/supabase/client"
 import { Location } from "@/types/supabase-types"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 const fetcher = async () => {
   const supabase = createClient()
@@ -119,6 +121,31 @@ export function LocationModule() {
       
     setLocationTenants(data || [])
     setLoadingTenants(false)
+  }
+
+  // Handle Status Toggle (Active/Inactive)
+  const handleRentalStatusChange = async (rentalId: number, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active'
+    try {
+       const { error } = await supabase.from('tenant_locations').update({ status: newStatus }).eq('id', rentalId)
+       if (error) throw error
+       
+       setLocationTenants(prev => prev.map(r => r.id === rentalId ? {...r, status: newStatus} : r))
+       toast.success("Status tapak dikemaskini")
+    } catch (e: any) {
+       toast.error("Gagal kemaskini: " + e.message)
+    }
+  }
+
+  // Handle Stall Number Update
+  const handleSaveStall = async (rentalId: number, stallNumber: string) => {
+    try {
+       const { error } = await supabase.from('tenant_locations').update({ stall_number: stallNumber }).eq('id', rentalId)
+       if (error) throw error
+       toast.success("No. Petak disimpan")
+    } catch (e: any) {
+       toast.error("Gagal simpan: " + e.message)
+    }
   }
 
   if (isLoading) {
@@ -316,7 +343,7 @@ export function LocationModule() {
                       <Users className="mr-2 h-4 w-4" /> Senarai Peniaga ({loc.tenant_count})
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-3xl bg-white rounded-3xl">
+                  <DialogContent className="max-w-4xl bg-white rounded-3xl">
                     <DialogHeader>
                       <DialogTitle className="text-2xl font-serif">Peniaga di {loc.name}</DialogTitle>
                       <DialogDescription>Senarai penyewa yang berdaftar di lokasi ini</DialogDescription>
@@ -332,21 +359,35 @@ export function LocationModule() {
                               <TableHead>Nama</TableHead>
                               <TableHead>Bisnes</TableHead>
                               <TableHead>No. Petak</TableHead>
-                              <TableHead>Status</TableHead>
+                              <TableHead className="text-center">Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {locationTenants.map((lt: any) => (
                               <TableRow key={lt.id}>
-                                <TableCell className="font-medium">{lt.tenants?.full_name}</TableCell>
+                                <TableCell className="font-medium">
+                                  {lt.tenants?.full_name}
+                                  <div className="text-xs text-muted-foreground">{lt.tenants?.phone_number}</div>
+                                </TableCell>
                                 <TableCell>{lt.tenants?.business_name}</TableCell>
                                 <TableCell>
-                                  <Badge variant="outline" className="font-mono">{lt.stall_number}</Badge>
+                                  <Input 
+                                    className="h-8 w-24 bg-white text-xs border-primary/20" 
+                                    defaultValue={lt.stall_number || ""}
+                                    placeholder="Petak..."
+                                    onBlur={(e) => handleSaveStall(lt.id, e.target.value)}
+                                  />
                                 </TableCell>
-                                <TableCell>
-                                   <Badge className={lt.status === 'active' ? 'bg-green-100 text-green-800 border-none' : 'bg-gray-100 text-gray-800 border-none'}>
-                                     {lt.status}
-                                   </Badge>
+                                <TableCell className="text-center">
+                                   <div className="flex items-center justify-center gap-2">
+                                      <Switch 
+                                        checked={lt.status === 'active'}
+                                        onCheckedChange={() => handleRentalStatusChange(lt.id, lt.status)}
+                                      />
+                                      <span className={cn("text-[10px] uppercase font-bold w-12 text-left", lt.status === 'active' ? "text-brand-green" : "text-muted-foreground")}>
+                                         {lt.status === 'active' ? 'Aktif' : 'Pend.'}
+                                      </span>
+                                   </div>
                                 </TableCell>
                               </TableRow>
                             ))}
