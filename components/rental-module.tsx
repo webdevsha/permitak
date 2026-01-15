@@ -15,6 +15,7 @@ import { createClient } from "@/utils/supabase/client"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Tenant } from "@/types/supabase-types"
 import { useSearchParams, useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
