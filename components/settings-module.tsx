@@ -199,10 +199,7 @@ export function SettingsModule() {
   }
 
   const handleSaveProfile = async () => {
-    if (!tenantId) {
-      toast.error("Ralat: Rekod pengguna tidak dijumpai")
-      return
-    }
+    if (!user) return
 
     setSaving(true)
     try {
@@ -213,9 +210,17 @@ export function SettingsModule() {
       if (files.ssm) newUrls.ssm = await handleFileUpload(files.ssm, 'ssm')
       if (files.ic) newUrls.ic = await handleFileUpload(files.ic, 'ic')
       
-      // Prepare Update Data
-      // IMPORTANT: Send null instead of empty string for optional fields to satisfy DB types
-      const updateData = {
+      // Update Profiles Table (Primary source for Full Name)
+      // We do this separately to ensure at least the basic profile is updated
+      if (formData.fullName) {
+        await supabase
+          .from('profiles')
+          .update({ full_name: formData.fullName })
+          .eq('id', user.id)
+      }
+
+      // Prepare Payload for Tenants Table
+      const payload = {
         full_name: formData.fullName,
         business_name: formData.businessName || null,
         phone_number: formData.phone || null,
@@ -227,21 +232,52 @@ export function SettingsModule() {
         ic_file_url: newUrls.ic || null
       }
       
-      const { error } = await supabase
-        .from('tenants')
-        .update(updateData)
-        .eq('id', tenantId)
+      let error;
+
+      if (tenantId) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('tenants')
+          .update(payload)
+          .eq('id', tenantId)
+        error = updateError
+      } else {
+        // Create new record
+        // We do NOT set 'status' here to avoid RLS violation (defaults to pending usually)
+        const { data: newTenant, error: insertError } = await supabase
+            .from('tenants')
+            .insert({
+                ...payload,
+                profile_id: user.id,
+                email: user.email
+            })
+            .select('id')
+            .single()
+            
+        if (newTenant) {
+            setTenantId(newTenant.id)
+        }
+        error = insertError
+      }
         
-      if (error) throw error
+      if (error) {
+        // If we hit RLS on insert, it might be because we can't create tenants manually.
+        // But we already updated the profile above, so we can consider it a partial success if it was just full_name
+        console.error("Tenant update error:", error)
+        if (error.code === '42501') {
+           throw new Error("Anda tiada kebenaran untuk mencipta profil perniagaan. Sila hubungi Admin.")
+        }
+        throw error
+      }
       
       setUrls(newUrls)
       setFiles({}) // Reset file inputs
       setIsEditing(false) // Switch back to read-only
-      toast.success("Profil berjaya dikemaskini")
+      toast.success(tenantId ? "Profil berjaya dikemaskini" : "Profil berjaya dicipta")
       
     } catch (err: any) {
       console.error(err)
-      toast.error("Gagal menyimpan: " + err.message)
+      toast.error("Ralat: " + err.message)
     } finally {
       setSaving(false)
     }
