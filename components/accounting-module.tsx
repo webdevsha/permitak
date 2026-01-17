@@ -29,7 +29,9 @@ import {
   Briefcase,
   ArrowDownRight,
   ArrowUpRight,
-  DollarSign
+  DollarSign,
+  Monitor,
+  ChevronDown
 } from "lucide-react"
 import {
   Dialog,
@@ -81,6 +83,8 @@ export function AccountingModule() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   
+  const [visibleCount, setVisibleCount] = useState(10) // Pagination
+  
   const [newTransaction, setNewTransaction] = useState({
     description: "",
     category: "",
@@ -128,6 +132,17 @@ export function AccountingModule() {
 
   // 5. Cash Balance (Total Cash In - Total Cash Out)
   const cashBalance = (totalCapital + operatingRevenue) - totalExpenses
+
+  // 6. Assets (Derived from Expense category 'Aset')
+  const totalAssets = transactions
+    ?.filter((t: any) => t.type === 'expense' && t.status === 'approved' && t.category === 'Aset')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0
+
+  // Total Equity = Capital + Net Profit
+  const totalEquity = totalCapital + netProfit
+  
+  // Total Balance Sheet Value = Assets (Cash + Fixed Assets)
+  const totalBalanceSheet = cashBalance + totalAssets
   
   // 7-TABUNG ALLOCATION (Based on Operating Revenue)
   const accounts = [
@@ -296,6 +311,10 @@ export function AccountingModule() {
       date: new Date().toISOString().split('T')[0]
     })
   }
+  
+  const showMore = () => {
+    setVisibleCount(prev => prev + 10)
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -391,6 +410,7 @@ export function AccountingModule() {
                           <SelectItem value="Bil">Bil</SelectItem>
                           <SelectItem value="Marketing">Marketing</SelectItem>
                           <SelectItem value="Gaji">Gaji</SelectItem>
+                          <SelectItem value="Aset">Aset / Harta</SelectItem>
                           <SelectItem value="Lain-lain">Lain-lain</SelectItem>
                         </>
                       )}
@@ -442,6 +462,9 @@ export function AccountingModule() {
           </TabsTrigger>
           <TabsTrigger value="reports" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
             <FileText className="w-4 h-4 mr-2" /> Laporan Kewangan
+          </TabsTrigger>
+          <TabsTrigger value="assets" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Monitor className="w-4 h-4 mr-2" /> Senarai Aset
           </TabsTrigger>
         </TabsList>
 
@@ -548,7 +571,7 @@ export function AccountingModule() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions?.map((transaction: any) => {
+                    {transactions?.slice(0, visibleCount).map((transaction: any) => {
                       const receipt = transaction.receipt_url
                       return (
                         <TableRow
@@ -637,6 +660,14 @@ export function AccountingModule() {
                     )}
                   </TableBody>
                 </Table>
+                
+                {transactions && transactions.length > visibleCount && (
+                  <div className="p-6 flex justify-center border-t border-border/10">
+                    <Button variant="outline" onClick={showMore} className="rounded-xl">
+                       <ChevronDown className="w-4 h-4 mr-2" /> Lihat Lagi
+                    </Button>
+                  </div>
+                )}
               </div>
               )}
             </CardContent>
@@ -737,10 +768,16 @@ export function AccountingModule() {
                                 RM {cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                              </TableCell>
                           </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Aset Tetap / Peralatan</TableCell>
+                             <TableCell className="text-right pr-10 font-mono">
+                                RM {totalAssets.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
                           <TableRow className="border-t">
                              <TableCell className="pl-6 font-bold">Jumlah Aset</TableCell>
                              <TableCell className="text-right pr-10 font-bold text-blue-600">
-                                RM {cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                RM {totalBalanceSheet.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                              </TableCell>
                           </TableRow>
 
@@ -764,7 +801,7 @@ export function AccountingModule() {
                           <TableRow className="bg-slate-900 text-white hover:bg-slate-900/90">
                              <TableCell className="pl-6 py-6 font-bold text-lg">Jumlah Ekuiti</TableCell>
                              <TableCell className="text-right pr-10 font-bold text-xl font-mono">
-                                RM {(totalCapital + netProfit).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                RM {(totalEquity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                              </TableCell>
                           </TableRow>
                        </TableBody>
@@ -773,6 +810,49 @@ export function AccountingModule() {
               </Card>
 
            </div>
+        </TabsContent>
+
+        <TabsContent value="assets" className="space-y-6">
+           <Card className="bg-white border-border/50 shadow-sm rounded-[2rem] overflow-hidden">
+              <CardHeader className="bg-slate-50 border-b border-border/30 pb-6">
+                 <div className="flex justify-between items-center">
+                    <div>
+                       <CardTitle className="font-serif text-2xl">Daftar Aset & Harta</CardTitle>
+                       <CardDescription>Senarai aset tetap yang dibeli melalui transaksi</CardDescription>
+                    </div>
+                    <div className="p-3 bg-white rounded-xl shadow-sm">
+                       <Monitor className="w-6 h-6 text-slate-600" />
+                    </div>
+                 </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                 <Table>
+                    <TableHeader className="bg-secondary/20">
+                       <TableRow>
+                          <TableHead className="pl-6 font-bold">Nama Aset</TableHead>
+                          <TableHead className="font-bold">Tarikh Beli</TableHead>
+                          <TableHead className="text-right font-bold pr-6">Nilai (RM)</TableHead>
+                       </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                       {transactions?.filter((t: any) => t.category === 'Aset' && t.type === 'expense').map((asset: any) => (
+                          <TableRow key={asset.id} className="hover:bg-secondary/10">
+                             <TableCell className="pl-6 font-medium">{asset.description}</TableCell>
+                             <TableCell className="font-mono text-xs text-muted-foreground">{new Date(asset.date).toLocaleDateString('ms-MY')}</TableCell>
+                             <TableCell className="text-right font-bold pr-6">RM {Number(asset.amount).toFixed(2)}</TableCell>
+                          </TableRow>
+                       ))}
+                       {!transactions?.some((t: any) => t.category === 'Aset') && (
+                          <TableRow>
+                             <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
+                                Tiada aset didaftarkan. Sila tambah transaksi 'Expense' dengan kategori 'Aset'.
+                             </TableCell>
+                          </TableRow>
+                       )}
+                    </TableBody>
+                 </Table>
+              </CardContent>
+           </Card>
         </TabsContent>
       </Tabs>
     </div>
