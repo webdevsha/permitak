@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Plus,
   Download,
@@ -24,7 +25,11 @@ import {
   FileText,
   Upload,
   User,
-  Calendar
+  Calendar,
+  Briefcase,
+  ArrowDownRight,
+  ArrowUpRight,
+  DollarSign
 } from "lucide-react"
 import {
   Dialog,
@@ -46,8 +51,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 const fetcher = async () => {
   const supabase = createClient()
   
-  // We use a simpler select first to ensure data loads
-  // We join tenants to get names
   const { data, error } = await supabase
     .from('transactions')
     .select(`
@@ -72,6 +75,7 @@ export function AccountingModule() {
   const { data: transactions, mutate, isLoading } = useSWR('transactions_master_ledger_v3', fetcher)
   const supabase = createClient()
 
+  const [activeTab, setActiveTab] = useState("dashboard")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<any>(null)
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
@@ -87,7 +91,6 @@ export function AccountingModule() {
   })
 
   useEffect(() => {
-    // Prefer the auth hook role, fallback to session storage if needed (though auth hook is better)
     if (role) {
        setUserRole(role)
     } else {
@@ -97,27 +100,41 @@ export function AccountingModule() {
   }, [role])
 
   // --- RESTRICTED VIEW FOR TENANTS ---
-  // If role is tenant, show Subscription Plans instead of Accounting Dashboard
   if (userRole === 'tenant') {
     return <SubscriptionPlans />
   }
 
   // ------------------------------------------------------------------
-  // 7-TABUNG CALCULATION ENGINE
+  // FINANCIAL CALCULATION ENGINE
   // ------------------------------------------------------------------
-  const calculateTotalIncome = () => {
-    return transactions
-      ?.filter((t: any) => t.type === 'income' && t.status === 'approved')
-      .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0
-  }
-
-  const totalIncome = calculateTotalIncome()
   
+  // 1. Paid Up Capital (Modal)
+  const totalCapital = transactions
+    ?.filter((t: any) => t.type === 'income' && t.status === 'approved' && t.category === 'Modal')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0
+
+  // 2. Operating Revenue (Income excluding Modal)
+  const operatingRevenue = transactions
+    ?.filter((t: any) => t.type === 'income' && t.status === 'approved' && t.category !== 'Modal')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0
+
+  // 3. Total Expenses
+  const totalExpenses = transactions
+    ?.filter((t: any) => t.type === 'expense' && t.status === 'approved')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0
+
+  // 4. Net Profit / Retained Earnings
+  const netProfit = operatingRevenue - totalExpenses
+
+  // 5. Cash Balance (Total Cash In - Total Cash Out)
+  const cashBalance = (totalCapital + operatingRevenue) - totalExpenses
+  
+  // 7-TABUNG ALLOCATION (Based on Operating Revenue)
   const accounts = [
     { 
       name: "Operating Account", 
       percent: "60%", 
-      amount: totalIncome * 0.60, 
+      amount: operatingRevenue * 0.60, 
       color: "bg-brand-blue/10 text-brand-blue border-brand-blue/20", 
       icon: Wallet,
       tag: "Actionable"
@@ -125,7 +142,7 @@ export function AccountingModule() {
     { 
       name: "Tax", 
       percent: "10%", 
-      amount: totalIncome * 0.10, 
+      amount: operatingRevenue * 0.10, 
       color: "bg-orange-50 text-orange-600 border-orange-100", 
       icon: Building,
       tag: "Liability"
@@ -133,7 +150,7 @@ export function AccountingModule() {
     { 
       name: "Zakat", 
       percent: "2.5%", 
-      amount: totalIncome * 0.025, 
+      amount: operatingRevenue * 0.025, 
       color: "bg-brand-green/10 text-brand-green border-brand-green/20", 
       icon: Heart,
       tag: "Do Not Touch"
@@ -141,7 +158,7 @@ export function AccountingModule() {
     { 
       name: "Investment", 
       percent: "10%", 
-      amount: totalIncome * 0.10, 
+      amount: operatingRevenue * 0.10, 
       color: "bg-blue-50 text-blue-600 border-blue-100", 
       icon: TrendingUp,
       tag: "Growth"
@@ -149,7 +166,7 @@ export function AccountingModule() {
     { 
       name: "Dividend", 
       percent: "10%", 
-      amount: totalIncome * 0.10, 
+      amount: operatingRevenue * 0.10, 
       color: "bg-indigo-50 text-indigo-600 border-indigo-100", 
       icon: Landmark,
       tag: "Growth"
@@ -157,7 +174,7 @@ export function AccountingModule() {
     { 
       name: "Savings", 
       percent: "4%", 
-      amount: totalIncome * 0.04, 
+      amount: operatingRevenue * 0.04, 
       color: "bg-purple-50 text-purple-600 border-purple-100", 
       icon: PiggyBank,
       tag: "Growth"
@@ -165,7 +182,7 @@ export function AccountingModule() {
     { 
       name: "Emergency", 
       percent: "3.5%", 
-      amount: totalIncome * 0.035, 
+      amount: operatingRevenue * 0.035, 
       color: "bg-yellow-50 text-yellow-600 border-yellow-100", 
       icon: ShieldAlert,
       tag: "Safety Net"
@@ -281,7 +298,7 @@ export function AccountingModule() {
   }
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-serif font-bold text-foreground leading-tight">Perakaunan</h2>
@@ -362,6 +379,7 @@ export function AccountingModule() {
                     <SelectContent>
                       {newTransaction.type === 'income' ? (
                         <>
+                          <SelectItem value="Modal">Modal (Capital)</SelectItem>
                           <SelectItem value="Jualan">Jualan</SelectItem>
                           <SelectItem value="Servis">Servis</SelectItem>
                           <SelectItem value="Lain-lain">Lain-lain</SelectItem>
@@ -414,192 +432,349 @@ export function AccountingModule() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button
-            variant="outline"
-            className="rounded-2xl px-6 h-12 border-border bg-white hover:bg-muted text-foreground"
-            onClick={() => toast.success("Feature coming soon")}
-          >
-            <Download className="mr-2 h-5 w-5" />
-            Eksport
-          </Button>
         </div>
       </div>
 
-      {/* 7-TABUNG DASHBOARD */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <Card className="lg:col-span-12 bg-white border border-border/50 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.03)] overflow-hidden">
-          <div className="p-10 border-b border-border/30 bg-secondary/30 flex justify-between items-end">
-            <div>
-              <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-2">
-                Jumlah Kutipan (Approved Income)
-              </p>
-              <h3 className="text-6xl font-sans font-black tracking-tighter text-primary">
-                RM {totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </h3>
-            </div>
-            <div className="text-right">
-              <p className="text-muted-foreground text-xs font-bold mb-1">Status Agihan</p>
-              <Badge className="bg-brand-green/10 text-brand-green border-none px-4 py-1 rounded-full font-bold">
-                100% DIAGIH
-              </Badge>
-            </div>
-          </div>
-          <CardContent className="p-10 bg-white">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6">
-              {accounts.map((acc) => (
-                <div key={acc.name} className="space-y-3 group">
-                  <div
-                    className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 shadow-sm border",
-                      acc.color,
-                    )}
-                  >
-                    <acc.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-full border uppercase", acc.color.replace('bg-', 'bg-white/50 '))}>
-                        {acc.percent}
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-                      {acc.name}
-                    </p>
-                    <p className="text-lg font-bold text-foreground mt-0.5">
-                      RM {acc.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </p>
-                     <p className="text-[9px] text-muted-foreground/60 italic">
-                      {acc.tag}
-                    </p>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="bg-white border border-border/50 p-1 rounded-xl mb-6">
+          <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
+            <Wallet className="w-4 h-4 mr-2" /> 7-Tabung Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white">
+            <FileText className="w-4 h-4 mr-2" /> Laporan Kewangan
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dashboard" className="space-y-8">
+          {/* 7-TABUNG DASHBOARD */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <Card className="lg:col-span-12 bg-white border border-border/50 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.03)] overflow-hidden">
+              <div className="p-10 border-b border-border/30 bg-secondary/30 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                <div>
+                  <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-2">
+                    Jumlah Pendapatan Operasi (Revenue)
+                  </p>
+                  <h3 className="text-5xl lg:text-6xl font-sans font-black tracking-tighter text-primary">
+                    RM {operatingRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge className="bg-emerald-100 text-emerald-800 border-none px-2 py-0.5 rounded-md text-xs font-bold">
+                       + RM {totalCapital.toLocaleString(undefined, { minimumFractionDigits: 0 })} Modal
+                    </Badge>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground text-xs font-bold mb-1">Status Agihan</p>
+                  <Badge className="bg-brand-green/10 text-brand-green border-none px-4 py-1 rounded-full font-bold">
+                    100% DIAGIH
+                  </Badge>
+                </div>
+              </div>
+              <CardContent className="p-10 bg-white">
+                
+                {/* Paid Up Capital Section */}
+                <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                   <div className="w-12 h-12 bg-slate-200 rounded-xl flex items-center justify-center text-slate-600">
+                      <Briefcase className="w-6 h-6" />
+                   </div>
+                   <div>
+                      <p className="text-xs font-bold uppercase text-slate-500">Modal Pusingan (Paid Up Capital)</p>
+                      <p className="text-2xl font-bold text-slate-800">
+                         RM {totalCapital.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[10px] text-slate-400">Modal suntikan pemilik & pelabur (Tidak termasuk dalam agihan 7-Tabung)</p>
+                   </div>
+                </div>
 
-      <Card className="bg-white rounded-[2.5rem] border border-border/50 shadow-sm overflow-hidden">
-        <CardHeader className="p-10 border-b border-border/30">
-          <div>
-            <CardTitle className="text-3xl font-serif">Senarai Transaksi</CardTitle>
-            <CardDescription className="text-muted-foreground text-lg mt-1 font-medium">
-              Rekod keluar masuk kewangan berpusat
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-             <div className="p-12 flex justify-center text-muted-foreground">
-               <Loader2 className="animate-spin mr-2" /> Memuatkan data...
-             </div>
-          ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-secondary/20">
-                <TableRow className="border-border/20 h-16 hover:bg-transparent">
-                  <TableHead className="px-8 font-bold text-xs uppercase tracking-widest">Tarikh</TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-widest">Keterangan</TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-widest text-right">Jumlah</TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-widest text-center">Resit</TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-widest text-center">Status</TableHead>
-                  <TableHead className="px-8 font-bold text-xs uppercase tracking-widest text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions?.map((transaction: any) => {
-                  const receipt = transaction.receipt_url
-                  return (
-                    <TableRow
-                      key={transaction.id}
-                      className="border-border/10 h-20 hover:bg-secondary/10 transition-colors"
-                    >
-                      <TableCell className="px-8 font-mono text-xs text-muted-foreground">
-                         <div className="flex items-center gap-2">
-                           <Calendar className="w-3 h-3 text-muted-foreground/70" />
-                           {new Date(transaction.date).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' })}
-                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-bold text-foreground">{transaction.description}</div>
-                        <div className="flex flex-col gap-1 mt-1">
-                          {transaction.tenants && (
-                            <div className="flex items-center gap-1 text-xs text-primary font-medium">
-                              <User size={12} />
-                              {transaction.tenants.full_name}
-                            </div>
-                          )}
-                          <Badge variant="outline" className="w-fit text-[10px] py-0 h-5 bg-slate-50 text-slate-500 border-slate-200">
-                             {transaction.category}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell
-                        className={`text-right font-bold text-lg ${transaction.type === "income" ? "text-brand-green" : "text-red-500"}`}
-                      >
-                        {transaction.type === "income" ? "+" : "-"} RM {Number(transaction.amount).toFixed(2)}
-                      </TableCell>
-                       <TableCell className="text-center">
-                         {receipt ? (
-                           <a href={receipt} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center p-2 bg-secondary rounded-lg hover:bg-secondary/80">
-                             <FileText className="w-4 h-4 text-primary" />
-                           </a>
-                         ) : (
-                           <span className="text-muted-foreground text-xs">-</span>
-                         )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "rounded-full px-4 py-1 text-[10px] font-bold uppercase tracking-wider",
-                            transaction.status === "approved"
-                              ? "bg-brand-green/10 text-brand-green border-brand-green/20"
-                              : "bg-orange-50 text-orange-600 border-orange-100",
-                          )}
-                        >
-                          {transaction.status === "approved" ? "Diluluskan" : "Menunggu"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-8 text-right">
-                        {userRole === "admin" && (
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-all"
-                              onClick={() => handleEdit(transaction)}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-10 w-10 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all"
-                              onClick={() => handleDelete(transaction.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6">
+                  {accounts.map((acc) => (
+                    <div key={acc.name} className="space-y-3 group">
+                      <div
+                        className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 shadow-sm border",
+                          acc.color,
                         )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-                {(!transactions || transactions.length === 0) && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                       <p>Tiada transaksi direkodkan.</p>
-                       <p className="text-xs opacity-50 mt-2">Sila tambah transaksi baru atau semak database.</p>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                      >
+                        <acc.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1 mb-1">
+                          <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-full border uppercase", acc.color.replace('bg-', 'bg-white/50 '))}>
+                            {acc.percent}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                          {acc.name}
+                        </p>
+                        <p className="text-lg font-bold text-foreground mt-0.5">
+                          RM {acc.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground/60 italic">
+                          {acc.tag}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          )}
-        </CardContent>
-      </Card>
+
+          <Card className="bg-white rounded-[2.5rem] border border-border/50 shadow-sm overflow-hidden">
+            <CardHeader className="p-10 border-b border-border/30">
+              <div>
+                <CardTitle className="text-3xl font-serif">Senarai Transaksi</CardTitle>
+                <CardDescription className="text-muted-foreground text-lg mt-1 font-medium">
+                  Rekod keluar masuk kewangan berpusat
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-12 flex justify-center text-muted-foreground">
+                  <Loader2 className="animate-spin mr-2" /> Memuatkan data...
+                </div>
+              ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-secondary/20">
+                    <TableRow className="border-border/20 h-16 hover:bg-transparent">
+                      <TableHead className="px-8 font-bold text-xs uppercase tracking-widest">Tarikh</TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-widest">Keterangan</TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-widest text-right">Jumlah</TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-widest text-center">Resit</TableHead>
+                      <TableHead className="font-bold text-xs uppercase tracking-widest text-center">Status</TableHead>
+                      <TableHead className="px-8 font-bold text-xs uppercase tracking-widest text-right">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions?.map((transaction: any) => {
+                      const receipt = transaction.receipt_url
+                      return (
+                        <TableRow
+                          key={transaction.id}
+                          className="border-border/10 h-20 hover:bg-secondary/10 transition-colors"
+                        >
+                          <TableCell className="px-8 font-mono text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-3 h-3 text-muted-foreground/70" />
+                              {new Date(transaction.date).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-bold text-foreground">{transaction.description}</div>
+                            <div className="flex flex-col gap-1 mt-1">
+                              {transaction.tenants && (
+                                <div className="flex items-center gap-1 text-xs text-primary font-medium">
+                                  <User size={12} />
+                                  {transaction.tenants.full_name}
+                                </div>
+                              )}
+                              <Badge variant="outline" className="w-fit text-[10px] py-0 h-5 bg-slate-50 text-slate-500 border-slate-200">
+                                {transaction.category}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell
+                            className={`text-right font-bold text-lg ${transaction.type === "income" ? "text-brand-green" : "text-red-500"}`}
+                          >
+                            {transaction.type === "income" ? "+" : "-"} RM {Number(transaction.amount).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {receipt ? (
+                              <a href={receipt} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center p-2 bg-secondary rounded-lg hover:bg-secondary/80">
+                                <FileText className="w-4 h-4 text-primary" />
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-full px-4 py-1 text-[10px] font-bold uppercase tracking-wider",
+                                transaction.status === "approved"
+                                  ? "bg-brand-green/10 text-brand-green border-brand-green/20"
+                                  : "bg-orange-50 text-orange-600 border-orange-100",
+                              )}
+                            >
+                              {transaction.status === "approved" ? "Diluluskan" : "Menunggu"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-8 text-right">
+                            {userRole === "admin" && (
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-all"
+                                  onClick={() => handleEdit(transaction)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-10 w-10 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-all"
+                                  onClick={() => handleDelete(transaction.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                    {(!transactions || transactions.length === 0) && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                          <p>Tiada transaksi direkodkan.</p>
+                          <p className="text-xs opacity-50 mt-2">Sila tambah transaksi baru atau semak database.</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-8">
+           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              
+              {/* Cash Flow Statement */}
+              <Card className="bg-white border-border/50 shadow-sm rounded-[2rem] overflow-hidden">
+                 <CardHeader className="bg-emerald-50/50 border-b border-emerald-100/50 pb-6">
+                    <div className="flex justify-between items-center">
+                       <div>
+                          <CardTitle className="font-serif text-2xl text-emerald-900">Penyata Aliran Tunai</CardTitle>
+                          <CardDescription className="text-emerald-700/70">Ringkasan kemasukan dan perbelanjaan tunai</CardDescription>
+                       </div>
+                       <div className="p-3 bg-white rounded-xl shadow-sm">
+                          <ArrowUpRight className="w-6 h-6 text-emerald-600" />
+                       </div>
+                    </div>
+                 </CardHeader>
+                 <CardContent className="p-0">
+                    <Table>
+                       <TableBody>
+                          {/* Cash Inflow */}
+                          <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                             <TableCell className="font-bold py-4 pl-6 text-muted-foreground uppercase text-xs tracking-wider">Aliran Masuk (Cash In)</TableCell>
+                             <TableCell></TableCell>
+                          </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Jualan & Operasi</TableCell>
+                             <TableCell className="text-right pr-10 font-mono">
+                                RM {operatingRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Modal & Pembiayaan</TableCell>
+                             <TableCell className="text-right pr-10 font-mono">
+                                RM {totalCapital.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+                          <TableRow className="border-t-2 border-dashed">
+                             <TableCell className="pl-6 font-bold">Jumlah Tunai Masuk</TableCell>
+                             <TableCell className="text-right pr-10 font-bold text-emerald-600">
+                                RM {(operatingRevenue + totalCapital).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+
+                          {/* Cash Outflow */}
+                          <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                             <TableCell className="font-bold py-4 pl-6 text-muted-foreground uppercase text-xs tracking-wider">Aliran Keluar (Cash Out)</TableCell>
+                             <TableCell></TableCell>
+                          </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Perbelanjaan Operasi</TableCell>
+                             <TableCell className="text-right pr-10 font-mono text-red-500">
+                                (RM {totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                             </TableCell>
+                          </TableRow>
+                          
+                          {/* Net Flow */}
+                          <TableRow className="bg-emerald-900 text-white hover:bg-emerald-900/90">
+                             <TableCell className="pl-6 py-6 font-bold text-lg">Lebihan / (Kurangan) Tunai</TableCell>
+                             <TableCell className="text-right pr-10 font-bold text-xl font-mono">
+                                RM {cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+                       </TableBody>
+                    </Table>
+                 </CardContent>
+              </Card>
+
+              {/* Balance Sheet (Simplified) */}
+              <Card className="bg-white border-border/50 shadow-sm rounded-[2rem] overflow-hidden">
+                 <CardHeader className="bg-blue-50/50 border-b border-blue-100/50 pb-6">
+                    <div className="flex justify-between items-center">
+                       <div>
+                          <CardTitle className="font-serif text-2xl text-blue-900">Kunci Kira-Kira</CardTitle>
+                          <CardDescription className="text-blue-700/70">Kedudukan kewangan semasa (Aset = Liabiliti + Ekuiti)</CardDescription>
+                       </div>
+                       <div className="p-3 bg-white rounded-xl shadow-sm">
+                          <Briefcase className="w-6 h-6 text-blue-600" />
+                       </div>
+                    </div>
+                 </CardHeader>
+                 <CardContent className="p-0">
+                     <Table>
+                       <TableBody>
+                          {/* Assets */}
+                          <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                             <TableCell className="font-bold py-4 pl-6 text-muted-foreground uppercase text-xs tracking-wider">Aset (Assets)</TableCell>
+                             <TableCell></TableCell>
+                          </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Tunai di Tangan / Bank</TableCell>
+                             <TableCell className="text-right pr-10 font-mono">
+                                RM {cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+                          <TableRow className="border-t">
+                             <TableCell className="pl-6 font-bold">Jumlah Aset</TableCell>
+                             <TableCell className="text-right pr-10 font-bold text-blue-600">
+                                RM {cashBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+
+                          {/* Equity & Liabilities */}
+                          <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                             <TableCell className="font-bold py-4 pl-6 text-muted-foreground uppercase text-xs tracking-wider">Ekuiti & Liabiliti</TableCell>
+                             <TableCell></TableCell>
+                          </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Modal Pusingan</TableCell>
+                             <TableCell className="text-right pr-10 font-mono">
+                                RM {totalCapital.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+                          <TableRow>
+                             <TableCell className="pl-10">Untung Bersih (Retained Earnings)</TableCell>
+                             <TableCell className={cn("text-right pr-10 font-mono", netProfit < 0 ? "text-red-500" : "text-emerald-600")}>
+                                {netProfit < 0 ? `(RM ${Math.abs(netProfit).toLocaleString(undefined, { minimumFractionDigits: 2 })})` : `RM ${netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                             </TableCell>
+                          </TableRow>
+                          <TableRow className="bg-slate-900 text-white hover:bg-slate-900/90">
+                             <TableCell className="pl-6 py-6 font-bold text-lg">Jumlah Ekuiti</TableCell>
+                             <TableCell className="text-right pr-10 font-bold text-xl font-mono">
+                                RM {(totalCapital + netProfit).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                             </TableCell>
+                          </TableRow>
+                       </TableBody>
+                    </Table>
+                 </CardContent>
+              </Card>
+
+           </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
