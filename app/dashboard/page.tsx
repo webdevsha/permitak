@@ -3,54 +3,61 @@
 import { AppSidebar, MobileNav } from "@/components/app-sidebar"
 import { Footer } from "@/components/footer"
 import { RecentTransactions } from "@/components/recent-transactions"
-import { Users, AlertCircle, Loader2, TrendingUp, ArrowRight } from "lucide-react"
+import { Users, AlertCircle, Loader2, TrendingUp, ArrowRight, Briefcase } from "lucide-react"
 import { useState, useEffect } from "react"
 import { TenantList } from "@/components/tenant-list"
 import { AccountingModule } from "@/components/accounting-module"
 import { RentalModule } from "@/components/rental-module"
 import { SettingsModule } from "@/components/settings-module"
 import { LocationModule } from "@/components/location-module"
+import { OrganizerList } from "@/components/organizer-list"
+import { PermitsModule } from "@/components/permits-module"
 import useSWR from "swr"
 import { useAuth } from "@/components/providers/auth-provider"
 import { createClient } from "@/utils/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-const fetchDashboardData = async () => {
+const fetchDashboardData = async ([, role, userId]: [string, string, string]) => {
   const supabase = createClient()
   
   // 1. Fetch Transactions
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('*')
-    .order('date', { ascending: false })
-    
-  // 2. Fetch Tenants with their Locations to know rates
-  const { data: tenants } = await supabase
-    .from('tenants')
-    .select('*, tenant_locations(*, locations(*))')
+  let txQuery = supabase.from('transactions').select('*').order('date', { ascending: false })
   
-  // 3. Logic: Calculate Overdue based on Rate Type
+  const { data: transactions } = await txQuery
+    
+  // 2. Fetch Tenants
+  let tenantsQuery = supabase.from('tenants').select('*, tenant_locations(*, locations(*))')
+  const { data: tenants } = await tenantsQuery
+  
+  // Filter for Organizer
+  let filteredTenants = tenants || []
+  if (role === 'organizer') {
+     const { data: myLocs } = await supabase.from('locations').select('id').eq('organizer_id', userId)
+     const locIds = myLocs?.map(l => l.id) || []
+     filteredTenants = filteredTenants.filter(t => 
+        t.tenant_locations?.some((tl: any) => locIds.includes(tl.location_id))
+     )
+  }
+
+  // 3. Logic: Calculate Overdue
   const overdueTenants = []
   
-  if (tenants && transactions) {
-     for (const t of tenants) {
-       // Find last approved income
+  if (filteredTenants && transactions) {
+     for (const t of filteredTenants) {
        const lastTx = transactions.find(
          tx => tx.tenant_id === t.id && tx.type === 'income' && tx.status === 'approved'
        )
        
-       // Determine primary rate type from assigned locations (take first for simplicity)
        const loc = t.tenant_locations?.[0]
-       const rateType = loc?.rate_type || 'monthly' // Default to monthly if unknown
+       const rateType = loc?.rate_type || 'monthly' 
        const locationName = loc?.locations?.name || 'Unknown'
 
-       // Calculate Days passed
        let daysDiff = 0
        let lastDateStr = 'Tiada Rekod'
        
        if (!lastTx) {
-          daysDiff = 999 // Never paid
+          daysDiff = 999 
        } else {
           const lastDate = new Date(lastTx.date)
           const today = new Date()
@@ -59,28 +66,22 @@ const fetchDashboardData = async () => {
           lastDateStr = lastTx.date
        }
 
-       // --- Overdue Logic ---
        let isOverdue = false
        let arrearsAmount = 0
-       let overdueText = ""
 
        if (rateType === 'monthly') {
-         // Monthly renews monthly (30 days)
          if (daysDiff > 30) {
            isOverdue = true
            const monthsOverdue = Math.floor(daysDiff / 30)
            const rate = loc?.locations?.rate_monthly || 0
            arrearsAmount = monthsOverdue * rate
-           overdueText = `${monthsOverdue} Bulan`
          }
        } else {
-         // Daily/Khemah/CBS renews WEEKLY (7 days)
          if (daysDiff > 7) {
            isOverdue = true
            const weeksOverdue = Math.floor(daysDiff / 7)
            const rate = rateType === 'cbs' ? (loc?.locations?.rate_cbs || 0) : (loc?.locations?.rate_khemah || 0)
            arrearsAmount = weeksOverdue * rate
-           overdueText = `${weeksOverdue} Minggu`
          }
        }
 
@@ -89,7 +90,6 @@ const fetchDashboardData = async () => {
              ...t,
              lastDate: lastDateStr,
              arrears: arrearsAmount,
-             overdueText,
              locationName
           })
        }
@@ -98,22 +98,27 @@ const fetchDashboardData = async () => {
   
   return {
     transactions: transactions || [],
-    tenants: tenants || [],
+    tenants: filteredTenants,
     overdueTenants
   }
 }
 
 export default function DashboardPage() {
-  const { role, isLoading: authLoading } = useAuth()
+  const { role, user, isLoading: authLoading } = useAuth()
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   
-  const { data: dashData, isLoading: dataLoading } = useSWR(role === 'admin' || role === 'staff' ? 'dashboard_data' : null, fetchDashboardData)
+  const { data: dashData, isLoading: dataLoading } = useSWR(
+    (role === 'admin' || role === 'staff' || role === 'organizer') && user 
+      ? ['dashboard_data', role, user.id] 
+      : null, 
+    fetchDashboardData
+  )
 
   useEffect(() => {
     if (authLoading) return
     
-    if (role === 'admin' || role === 'staff') {
+    if (role === 'admin' || role === 'staff' || role === 'organizer') {
       setActiveModule("overview")
     } else {
       setActiveModule("rentals")
@@ -128,17 +133,17 @@ export default function DashboardPage() {
     )
   }
 
-  const displayRole = role === "admin" ? "Admin" : role === "staff" ? "Staff" : "Peniaga"
+  const displayRole = role === "admin" ? "Admin" : role === "staff" ? "Staff" : role === "organizer" ? "Penganjur" : "Peniaga"
 
   const transactions = dashData?.transactions || []
   const tenants = dashData?.tenants || []
   const overdueTenants = dashData?.overdueTenants || []
   
   const totalIncome = transactions
-    .filter(t => t.type === 'income' && t.status === 'approved')
-    .reduce((sum, t) => sum + Number(t.amount), 0)
+    .filter((t: any) => t.type === 'income' && t.status === 'approved')
+    .reduce((sum: number, t: any) => sum + Number(t.amount), 0)
 
-  const activeTenantsCount = tenants.filter(t => t.status === 'active').length
+  const activeTenantsCount = tenants.filter((t: any) => t.status === 'active').length
   
   return (
     <div className="flex h-screen bg-background font-sans overflow-hidden">
@@ -167,6 +172,8 @@ export default function DashboardPage() {
                 <p className="text-muted-foreground text-lg md:text-xl font-medium tracking-tight opacity-70">
                   {role === "admin"
                     ? "Ringkasan operasi dan kewangan semasa."
+                    : role === "organizer"
+                    ? "Pantau lokasi dan penyewa anda."
                     : "Urus tapak dan bayaran dengan mudah."}
                 </p>
               </div>
@@ -186,6 +193,7 @@ export default function DashboardPage() {
                 
                 {/* Summary Section */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Show Income only to Admin/Staff for now, maybe filtered for Organizer later */}
                   <Card className="bg-primary text-primary-foreground border-none shadow-xl shadow-primary/20 rounded-[2rem]">
                     <CardHeader className="pb-2">
                       <CardDescription className="text-primary-foreground/80 font-medium text-xs uppercase tracking-wider">Jumlah Kutipan</CardDescription>
@@ -196,14 +204,16 @@ export default function DashboardPage() {
                     <CardContent>
                       <div className="flex items-center gap-2 text-xs bg-primary-foreground/10 w-fit px-3 py-1 rounded-full">
                         <TrendingUp size={14} />
-                        <span>{transactions.filter(t => t.type === 'income').length} Transaksi</span>
+                        <span>{transactions.filter((t: any) => t.type === 'income').length} Transaksi</span>
                       </div>
                     </CardContent>
                   </Card>
 
                   <Card className="bg-white border-border/50 shadow-sm rounded-[2rem]">
                      <CardHeader className="pb-2">
-                      <CardDescription className="font-medium text-xs uppercase tracking-wider">Peniaga Berdaftar</CardDescription>
+                      <CardDescription className="font-medium text-xs uppercase tracking-wider">
+                         {role === 'organizer' ? 'Peniaga Saya' : 'Peniaga Berdaftar'}
+                      </CardDescription>
                       <CardTitle className="text-3xl lg:text-4xl font-sans font-bold text-foreground">
                         {tenants.length}
                       </CardTitle>
@@ -237,9 +247,11 @@ export default function DashboardPage() {
                    <div className="xl:col-span-2 space-y-6">
                       <div className="flex justify-between items-center">
                         <h2 className="text-xl font-serif font-semibold">Transaksi Terkini</h2>
-                        <Button variant="link" onClick={() => setActiveModule('accounting')} className="text-primary text-sm h-auto p-0">
-                          Lihat Semua &rarr;
-                        </Button>
+                        {role !== 'organizer' && (
+                          <Button variant="link" onClick={() => setActiveModule('accounting')} className="text-primary text-sm h-auto p-0">
+                            Lihat Semua &rarr;
+                          </Button>
+                        )}
                       </div>
                       <RecentTransactions data={transactions} />
                    </div>
@@ -263,9 +275,6 @@ export default function DashboardPage() {
                                    <div>
                                      <div className="flex items-center gap-2">
                                        <p className="font-bold text-sm text-foreground">{t.full_name}</p>
-                                       <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full font-bold">
-                                         -{t.overdueText}
-                                       </span>
                                      </div>
                                      <p className="text-xs text-muted-foreground">{t.business_name} • {t.locationName}</p>
                                      <p className="text-xs text-red-600 font-bold mt-1">
@@ -291,9 +300,11 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {activeModule === "organizers" && <OrganizerList />}
             {activeModule === "tenants" && <TenantList />}
             {activeModule === "accounting" && <AccountingModule />}
             {activeModule === "locations" && <LocationModule />}
+            {activeModule === "permits" && <PermitsModule />}
             {activeModule === "rentals" && <RentalModule />}
             {activeModule === "settings" && <SettingsModule />}
             
