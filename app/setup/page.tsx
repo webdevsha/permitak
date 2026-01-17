@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
-import { Shield, User, Users, CheckCircle, AlertTriangle } from "lucide-react"
+import { Shield, User, Users, CheckCircle, AlertTriangle, Briefcase } from "lucide-react"
 
 export default function SetupPage() {
   const [loading, setLoading] = useState(false)
@@ -17,6 +17,8 @@ export default function SetupPage() {
   const users = [
     { email: "admin@permit.com", pass: "pass1234", role: "admin", name: "Super Admin", isTenant: false },
     { email: "staff@permit.com", pass: "pass1234", role: "staff", name: "Staff Member", isTenant: false },
+    { email: "org1@permit.com", pass: "pass1234", role: "organizer", name: "Penganjur KL (Org01)", isTenant: false },
+    { email: "org2@permit.com", pass: "pass1234", role: "organizer", name: "Penganjur Selangor (Org02)", isTenant: false },
     { email: "siti@permit.com", pass: "pass1234", role: "tenant", name: "Siti Aminah", isTenant: true, business: "Siti Hijab Collection", phone: "0123456789" },
     { email: "ahmad@permit.com", pass: "pass1234", role: "tenant", name: "Ahmad Albab", isTenant: true, business: "Ahmad Burger", phone: "0198765432" },
   ]
@@ -45,17 +47,17 @@ export default function SetupPage() {
         
         // Wait a bit for trigger to run
         await new Promise(r => setTimeout(r, 1000))
+        
+        // Get the user ID from auth.users via generic query (since we can't always get it from signUp if duplicated)
+        // If logged in as admin, we could list users. Here we rely on 'data.user' from signUp success or we try to login
+        let userId = data.user?.id
 
-        // Get the user ID (whether new or existing)
-        // We can't get it easily if signUp failed due to existing, so we try to signIn or just query profile if possible (RLS might block)
-        // For setup script, we assume clean slate or we just skip if exists. 
-        // BUT, we need the ID to create the Tenant record.
+        // If signUp failed because user exists, we can't get ID easily without logging in.
+        // For setup script, we will skip if ID is missing (assume user exists)
+        // BUT to set roles for existing users, we might need to signIn. 
+        // Let's assume for a fresh setup mainly. If user exists, we assume their role is set or we can't touch them without login.
         
-        // If we can't get the ID easily from client-side without logging in, we'll try to insert tenant blindly? No, we need profile_id.
-        // Let's assume the user was created or we proceed. 
-        
-        if (data.user) {
-             const userId = data.user.id
+        if (userId) {
              addLog(`✅ User ID: ${userId.slice(0, 6)}...`)
 
              // 2. Set Role
@@ -120,6 +122,17 @@ export default function SetupPage() {
                      }
                  }
              }
+        } else {
+           // Try to recover if user exists by forcing role update via RPC using email (assuming function allows it)
+           if (u.role !== 'tenant') {
+              try {
+                await supabase.rpc('set_user_role', {
+                   target_email: u.email,
+                   new_role: u.role
+                })
+                addLog(`   Attempted to update role for existing user ${u.email}`)
+              } catch (e) { console.log(e) }
+           }
         }
       }
       
@@ -172,6 +185,7 @@ export default function SetupPage() {
                    <div className="flex items-center gap-3">
                      {u.role === 'admin' ? <Shield size={16} className="text-red-500" /> : 
                       u.role === 'staff' ? <User size={16} className="text-blue-500" /> : 
+                      u.role === 'organizer' ? <Briefcase size={16} className="text-purple-500" /> :
                       <Users size={16} className="text-green-500" />}
                      <div>
                        <p className="font-bold text-sm">{u.email}</p>
